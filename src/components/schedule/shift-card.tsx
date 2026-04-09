@@ -10,9 +10,11 @@ interface ShiftCardProps {
   warnings: Array<{ severity: string; message: string }>;
   onClick: () => void;
   onCallout: () => void;
+  onDragStart?: (shiftId: number) => void;
+  onDragEnd?: () => void;
 }
 
-export function ShiftCard({ shift, warnings, onClick, onCallout }: ShiftCardProps) {
+export function ShiftCard({ shift, warnings, onClick, onCallout, onDragStart, onDragEnd }: ShiftCardProps) {
   const { toast } = useToast();
   const confirm = useConfirm();
   const isOpen = !shift.assigned_staff_id || shift.status === "open" || shift.status === "called_out";
@@ -39,8 +41,15 @@ export function ShiftCard({ shift, warnings, onClick, onCallout }: ShiftCardProp
 
   return (
     <div
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData("text/plain", String(shift.id));
+        e.dataTransfer.effectAllowed = "move";
+        onDragStart?.(shift.id as number);
+      }}
+      onDragEnd={() => onDragEnd?.()}
       onClick={onClick}
-      className={`rounded-lg p-2 text-xs cursor-pointer border transition-colors ${
+      className={`rounded-lg p-2 text-xs cursor-grab active:cursor-grabbing border transition-colors ${
         isOpen
           ? "bg-red-50 border-red-200 hover:border-red-300"
           : warnings.length > 0

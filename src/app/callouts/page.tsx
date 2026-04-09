@@ -4,6 +4,7 @@ import { getWeekBounds, formatTime } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { CandidatePanel } from "@/components/schedule/candidate-panel";
 import { ChevronLeft, ChevronRight, AlertTriangle, Check } from "lucide-react";
+import { ErrorBanner } from "@/components/ui/error-banner";
 
 interface CalloutRecord {
   id: number;
@@ -29,12 +30,15 @@ export default function CalloutsPage() {
   const { weekStart, weekEnd } = getWeekBounds(today.toISOString().split("T")[0]);
 
   const [callouts, setCallouts] = useState<CalloutRecord[]>([]);
+  const [calloutsError, setCalloutsError] = useState(false);
   const [selectedShiftId, setSelectedShiftId] = useState<number | null>(null);
 
   function loadCallouts() {
+    setCalloutsError(false);
     fetch(`/api/callouts?weekStart=${weekStart}&weekEnd=${weekEnd}`)
-      .then(r => r.json())
-      .then(setCallouts);
+      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+      .then(setCallouts)
+      .catch(() => setCalloutsError(true));
   }
 
   useEffect(() => { loadCallouts(); }, [weekStart, weekEnd]);
@@ -129,7 +133,10 @@ export default function CalloutsPage() {
         </div>
       )}
 
-      {callouts.length === 0 && (
+      {calloutsError && (
+        <ErrorBanner message="Failed to load callouts." onRetry={loadCallouts} />
+      )}
+      {!calloutsError && callouts.length === 0 && (
         <div className="text-center py-12 text-gray-500">
           No callouts for this week.
         </div>

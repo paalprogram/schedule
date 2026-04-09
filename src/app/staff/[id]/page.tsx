@@ -4,6 +4,7 @@ import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ArrowLeft, Plus, Trash2, Edit2 } from "lucide-react";
+import { ErrorBanner } from "@/components/ui/error-banner";
 import Link from "next/link";
 import { SHORT_DAYS } from "@/lib/utils";
 
@@ -30,9 +31,14 @@ export default function StaffDetailPage({ params }: { params: Promise<{ id: stri
   const [showTraining, setShowTraining] = useState(false);
   const [showAvailability, setShowAvailability] = useState(false);
   const [editingAvail, setEditingAvail] = useState<AvailabilitySlot | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
   function reload() {
-    fetch(`/api/staff/${id}`).then(r => r.json()).then(setStaff);
+    setLoadError(false);
+    fetch(`/api/staff/${id}`)
+      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+      .then(setStaff)
+      .catch(() => setLoadError(true));
   }
 
   useEffect(() => {
@@ -160,6 +166,11 @@ export default function StaffDetailPage({ params }: { params: Promise<{ id: stri
     reload();
   }
 
+  if (loadError) return (
+    <div className="py-8">
+      <ErrorBanner message="Failed to load staff profile." onRetry={reload} />
+    </div>
+  );
   if (!staff) return <div className="text-center py-8 text-gray-500">Loading...</div>;
 
   const trainedIds = new Set(staff.training.map(t => t.student_id));

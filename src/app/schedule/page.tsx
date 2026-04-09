@@ -4,7 +4,8 @@ import { useSchedule, useStudents, useStaff } from "@/lib/hooks";
 import { getWeekBounds } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
-import { ChevronLeft, ChevronRight, Wand2, Download, Printer, Plus, AlertTriangle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Wand2, Download, Printer, Plus, AlertTriangle, UserX, FileText } from "lucide-react";
+import { ErrorBanner } from "@/components/ui/error-banner";
 import { ShiftCard } from "@/components/schedule/shift-card";
 import { CandidatePanel } from "@/components/schedule/candidate-panel";
 import { AddShiftForm } from "@/components/schedule/add-shift-form";
@@ -15,7 +16,7 @@ export default function SchedulePage() {
   today.setDate(today.getDate() + weekOffset * 7);
   const { weekStart, weekEnd } = getWeekBounds(today.toISOString().split("T")[0]);
 
-  const { data: schedule, mutate } = useSchedule(weekStart, weekEnd);
+  const { data: schedule, error: scheduleError, mutate } = useSchedule(weekStart, weekEnd);
   const { data: allStudents } = useStudents();
   const { data: allStaff } = useStaff();
   const [selectedShiftId, setSelectedShiftId] = useState<number | null>(null);
@@ -24,9 +25,31 @@ export default function SchedulePage() {
   const [autoAssigning, setAutoAssigning] = useState(false);
   const [studentFilter, setStudentFilter] = useState("");
   const [staffFilter, setStaffFilter] = useState("");
+  const [draggingShiftId, setDraggingShiftId] = useState<number | null>(null);
+  const [dropHighlight, setDropHighlight] = useState<number | "unassign" | null>(null);
   const { toast } = useToast();
 
   const refresh = useCallback(() => mutate(), [mutate]);
+
+  async function handleDrop(staffId: number | null, shiftId: number) {
+    await fetch(`/api/shifts/${shiftId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        assigned_staff_id: staffId,
+        status: staffId ? "scheduled" : "open",
+      }),
+    });
+    setDraggingShiftId(null);
+    setDropHighlight(null);
+    refresh();
+    if (staffId) {
+      const name = allStaff?.find((s: Record<string, unknown>) => s.id === staffId)?.name;
+      toast(`Shift reassigned to ${name || "staff"}`);
+    } else {
+      toast("Staff unassigned from shift", "warning");
+    }
+  }
 
   async function handleGenerate() {
     setGenerating(true);
@@ -59,6 +82,10 @@ export default function SchedulePage() {
 
   function handleExportCSV() {
     window.open(`/api/export?weekStart=${weekStart}&weekEnd=${weekEnd}`, "_blank");
+  }
+
+  function handleExportPDF() {
+    window.open(`/api/export/pdf?weekStart=${weekStart}&weekEnd=${weekEnd}`, "_blank");
   }
 
   function handlePrint() {
@@ -143,6 +170,9 @@ export default function SchedulePage() {
           >
             <Wand2 size={14} /> {autoAssigning ? "Assigning..." : "Auto-Assign Open"}
           </button>
+          <button onClick={handleExportPDF} className="flex items-center gap-1.5 px-3 py-2 border rounded-lg text-sm hover:bg-gray-50">
+            <FileText size={14} /> PDF
+          </button>
           <button onClick={handleExportCSV} className="flex items-center gap-1.5 px-3 py-2 border rounded-lg text-sm hover:bg-gray-50">
             <Download size={14} /> CSV
           </button>
@@ -206,6 +236,8 @@ export default function SchedulePage() {
                     warnings={schedule?.warnings?.filter((w: { shiftId?: number }) => w.shiftId === shift.id) || []}
                     onClick={() => setSelectedShiftId(shift.id as number)}
                     onCallout={refresh}
+                    onDragStart={(id) => setDraggingShiftId(id)}
+                    onDragEnd={() => { setDraggingShiftId(null); setDropHighlight(null); }}
                   />
                 ))
               )}
@@ -214,7 +246,48 @@ export default function SchedulePage() {
         ))}
       </div>
 
-      {!schedule && (
+      {/* Drag-and-drop staff panel */}
+      {draggingShiftId && allStaff && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg z-40 p-3 print:hidden">
+          <div className="max-w-[1400px] mx-auto">
+            <div className="text-xs font-medium text-gray-500 mb-2">Drop on a staff member to reassign</div>
+            <div className="flex flex-wrap gap-2">
+              <div
+                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDropHighlight("unassign"); }}
+                onDragLeave={() => setDropHighlight(null)}
+                onDrop={(e) => { e.preventDefault(); handleDrop(null, parseInt(e.dataTransfer.getData("text/plain"))); }}
+                className={`px-3 py-2 rounded-lg border-2 border-dashed text-sm flex items-center gap-1.5 transition-colors ${
+                  dropHighlight === "unassign"
+                    ? "border-red-400 bg-red-50 text-red-700"
+                    : "border-gray-300 text-gray-500 hover:border-red-300"
+                }`}
+              >
+                <UserX size={14} /> Unassign
+              </div>
+              {allStaff.filter((s: Record<string, unknown>) => s.active).map((s: Record<string, unknown>) => (
+                <div
+                  key={s.id as number}
+                  onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDropHighlight(s.id as number); }}
+                  onDragLeave={() => setDropHighlight(null)}
+                  onDrop={(e) => { e.preventDefault(); handleDrop(s.id as number, parseInt(e.dataTransfer.getData("text/plain"))); }}
+                  className={`px-3 py-2 rounded-lg border-2 border-dashed text-sm font-medium transition-colors ${
+                    dropHighlight === (s.id as number)
+                      ? "border-blue-400 bg-blue-50 text-blue-700"
+                      : "border-gray-300 text-gray-700 hover:border-blue-300"
+                  }`}
+                >
+                  {s.name as string}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {scheduleError && (
+        <ErrorBanner message="Failed to load schedule." onRetry={() => mutate()} />
+      )}
+      {!schedule && !scheduleError && (
         <div className="text-center py-12 text-gray-500">Loading schedule...</div>
       )}
 

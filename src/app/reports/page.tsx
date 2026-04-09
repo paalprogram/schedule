@@ -4,6 +4,7 @@ import { useReports } from "@/lib/hooks";
 import { getWeekBounds } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { ChevronLeft, ChevronRight, Users, Droplets, BarChart3, AlertTriangle } from "lucide-react";
+import { ErrorBanner } from "@/components/ui/error-banner";
 
 export default function ReportsPage() {
   const [weekOffset, setWeekOffset] = useState(0);
@@ -11,7 +12,7 @@ export default function ReportsPage() {
   today.setDate(today.getDate() + weekOffset * 7);
   const { weekStart, weekEnd } = getWeekBounds(today.toISOString().split("T")[0]);
 
-  const { data: report } = useReports(weekStart, weekEnd);
+  const { data: report, error: reportError, mutate } = useReports(weekStart, weekEnd);
 
   return (
     <div>
@@ -30,7 +31,9 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {!report ? (
+      {reportError ? (
+        <ErrorBanner message="Failed to load report." onRetry={() => mutate()} />
+      ) : !report ? (
         <div className="text-center py-12 text-gray-500">Loading report...</div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

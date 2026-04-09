@@ -4,12 +4,13 @@ import { getWeekBounds, formatTime } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { Calendar, AlertTriangle, PhoneOff, Users, Droplets, ArrowRight } from "lucide-react";
+import { ErrorBanner } from "@/components/ui/error-banner";
 
 export default function DashboardPage() {
   const { weekStart, weekEnd } = getWeekBounds();
-  const { data: schedule } = useSchedule(weekStart, weekEnd);
-  const { data: callouts } = useCallouts(weekStart, weekEnd);
-  const { data: report } = useReports(weekStart, weekEnd);
+  const { data: schedule, error: scheduleErr, mutate: mutateSchedule } = useSchedule(weekStart, weekEnd);
+  const { data: callouts, error: calloutsErr, mutate: mutateCallouts } = useCallouts(weekStart, weekEnd);
+  const { data: report, error: reportErr, mutate: mutateReport } = useReports(weekStart, weekEnd);
 
   const totalShifts = schedule?.days?.reduce((acc: number, d: { shifts: unknown[] }) => acc + d.shifts.length, 0) || 0;
   const warnings = schedule?.warnings || [];
@@ -22,6 +23,15 @@ export default function DashboardPage() {
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
         <p className="text-sm text-gray-600 mt-1">Week of {weekStart} to {weekEnd}</p>
       </div>
+
+      {(scheduleErr || calloutsErr || reportErr) && (
+        <div className="mb-4">
+          <ErrorBanner
+            message="Some dashboard data failed to load."
+            onRetry={() => { mutateSchedule(); mutateCallouts(); mutateReport(); }}
+          />
+        </div>
+      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

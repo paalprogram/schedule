@@ -5,10 +5,11 @@ import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { Plus, Edit2, Droplets, Search } from "lucide-react";
+import { ErrorBanner } from "@/components/ui/error-banner";
 import Link from "next/link";
 
 export default function StudentsPage() {
-  const { data: students, mutate } = useStudents();
+  const { data: students, error: studentsError, mutate } = useStudents();
   const { data: staff } = useStaff();
   const { toast } = useToast();
   const [showAdd, setShowAdd] = useState(false);
@@ -52,6 +53,8 @@ export default function StudentsPage() {
           <Plus size={16} /> Add Student
         </button>
       </div>
+
+      {studentsError && <ErrorBanner message="Failed to load student list." onRetry={() => mutate()} />}
 
       <div className="mb-4">
         <div className="relative max-w-xs">

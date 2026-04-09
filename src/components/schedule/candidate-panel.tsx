@@ -15,7 +15,7 @@ interface CandidatePanelProps {
 
 export function CandidatePanel({ shiftId, onClose, onAssign }: CandidatePanelProps) {
   const { toast } = useToast();
-  const { data: candidates } = useShiftCandidates(shiftId);
+  const { data: candidates, error: candidatesError, mutate: mutateCandidates } = useShiftCandidates(shiftId);
   const [shift, setShift] = useState<Record<string, unknown> | null>(null);
   const [overrideNote, setOverrideNote] = useState("");
   const [assigning, setAssigning] = useState<number | null>(null);
@@ -84,7 +84,12 @@ export function CandidatePanel({ shiftId, onClose, onAssign }: CandidatePanelPro
         </div>
       )}
 
-      {!candidates ? (
+      {candidatesError ? (
+        <div className="text-center py-4">
+          <p className="text-sm text-red-600 mb-2">Failed to load candidates.</p>
+          <button onClick={() => mutateCandidates()} className="text-sm text-blue-600 hover:text-blue-800">Retry</button>
+        </div>
+      ) : !candidates ? (
         <div className="text-center py-4 text-gray-500">Loading candidates...</div>
       ) : (
         <div className="space-y-2 max-h-[400px] overflow-y-auto">

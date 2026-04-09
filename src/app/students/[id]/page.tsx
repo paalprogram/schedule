@@ -5,6 +5,7 @@ import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ArrowLeft, Plus, Trash2, Edit2 } from "lucide-react";
+import { ErrorBanner } from "@/components/ui/error-banner";
 import Link from "next/link";
 import { SHORT_DAYS } from "@/lib/utils";
 
@@ -29,9 +30,14 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
   const [showStaff, setShowStaff] = useState(false);
   const [showTemplate, setShowTemplate] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<ShiftTemplate | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
   function reload() {
-    fetch(`/api/students/${id}`).then(r => r.json()).then(setStudent);
+    setLoadError(false);
+    fetch(`/api/students/${id}`)
+      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+      .then(setStudent)
+      .catch(() => setLoadError(true));
   }
 
   useEffect(() => {
@@ -116,6 +122,11 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
     reload();
   }
 
+  if (loadError) return (
+    <div className="py-8">
+      <ErrorBanner message="Failed to load student profile." onRetry={reload} />
+    </div>
+  );
   if (!student) return <div className="text-center py-8 text-gray-500">Loading...</div>;
 
   const trainedIds = new Set(student.trainedStaff.map(t => t.staff_id));

@@ -5,10 +5,11 @@ import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { Plus, Edit2, Droplets, Moon, Search } from "lucide-react";
+import { ErrorBanner } from "@/components/ui/error-banner";
 import Link from "next/link";
 
 export default function StaffPage() {
-  const { data: staff, mutate } = useStaff();
+  const { data: staff, error: staffError, mutate } = useStaff();
   const { toast } = useToast();
   const [showAdd, setShowAdd] = useState(false);
   const [search, setSearch] = useState("");
@@ -54,6 +55,8 @@ export default function StaffPage() {
           <Plus size={16} /> Add Staff
         </button>
       </div>
+
+      {staffError && <ErrorBanner message="Failed to load staff list." onRetry={() => mutate()} />}
 
       <div className="flex items-center gap-3 mb-4">
         <div className="relative flex-1 max-w-xs">

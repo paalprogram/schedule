@@ -12,12 +12,14 @@
     "db:reset": "npx tsx src/db/migrate.ts && npx tsx src/db/seed.ts"
   },
   "dependencies": {
+    "@types/pdfkit": "^0.17.5",
     "better-sqlite3": "^12.8.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "drizzle-orm": "^0.45.2",
     "lucide-react": "^1.8.0",
     "next": "16.2.3",
+    "pdfkit": "^0.18.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "swr": "^2.4.1"
