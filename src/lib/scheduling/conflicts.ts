@@ -9,14 +9,20 @@ function getDb() {
   return db;
 }
 
+/** Split a time range into segments — overnight ranges become two segments split at midnight */
+function timeSegments(start: string, end: string): [string, string][] {
+  if (end > start) return [[start, end]];
+  // Overnight: e.g. 22:00→04:00 becomes [22:00,24:00] + [00:00,04:00]
+  return [[start, "24:00"], ["00:00", end]];
+}
+
 export function timesOverlap(
   aStart: string, aEnd: string,
   bStart: string, bEnd: string
 ): boolean {
-  // Handle overnight shifts where end < start
-  const aEndAdj = aEnd <= aStart ? "23:59" : aEnd;
-  const bEndAdj = bEnd <= bStart ? "23:59" : bEnd;
-  return aStart < bEndAdj && bStart < aEndAdj;
+  const aSegs = timeSegments(aStart, aEnd);
+  const bSegs = timeSegments(bStart, bEnd);
+  return aSegs.some(a => bSegs.some(b => a[0] < b[1] && b[0] < a[1]));
 }
 
 export function getStaffShiftsForWeek(staffId: number, weekStart: string, weekEnd: string) {
@@ -83,11 +89,15 @@ export function isStaffAvailable(staffId: number, dayOfWeek: number, startTime: 
 
   if (slots.length === 0) return false;
 
-  // Check if any availability slot covers the shift
+  // Check if any availability slot fully covers the shift
   return slots.some(slot => {
-    // For overnight: if availability is 21:00-07:00, it covers overnight shifts
     if (slot.end_time <= slot.start_time) {
-      // Overnight availability
+      // Overnight availability covers [start_time→24:00] + [00:00→end_time]
+      if (endTime <= startTime) {
+        // Overnight shift: both evening and morning portions must be covered
+        return startTime >= slot.start_time && endTime <= slot.end_time;
+      }
+      // Regular shift: must fall entirely in evening or morning portion
       return startTime >= slot.start_time || endTime <= slot.end_time;
     }
     return startTime >= slot.start_time && endTime <= slot.end_time;

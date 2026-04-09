@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db-utils";
+import { validateTemplateUpdate } from "@/lib/validation";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const body = await req.json();
+  const validationError = validateTemplateUpdate(body);
+  if (validationError) return validationError;
+
   const db = getDb();
 
   db.prepare(`

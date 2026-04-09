@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db-utils";
+import { validateTrainingCreate } from "@/lib/validation";
 
 export async function GET() {
   const db = getDb(true);
@@ -17,6 +18,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
+  const validationError = validateTrainingCreate(body);
+  if (validationError) return validationError;
+
   const db = getDb();
 
   // Upsert training record

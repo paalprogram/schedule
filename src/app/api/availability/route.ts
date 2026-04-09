@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db-utils";
+import { validateAvailabilityCreate } from "@/lib/validation";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
+  const validationError = validateAvailabilityCreate(body);
+  if (validationError) return validationError;
+
   const db = getDb();
 
   const result = db.prepare(`
