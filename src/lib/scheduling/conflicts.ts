@@ -80,45 +80,122 @@ export function isStaffOnPto(staffId: number, date: string): boolean {
 }
 
 export function isStaffAvailable(staffId: number, dayOfWeek: number, startTime: string, endTime: string): boolean {
+  const isOvernightShift = endTime <= startTime;
+  const nextDay = (dayOfWeek + 1) % 7;
+
   const db = getDb();
   const slots = db.prepare(`
-    SELECT start_time, end_time FROM staff_availability
-    WHERE staff_id = ? AND day_of_week = ?
-  `).all(staffId, dayOfWeek) as Array<{ start_time: string; end_time: string }>;
+    SELECT day_of_week, start_time, end_time FROM staff_availability
+    WHERE staff_id = ? AND day_of_week IN (?, ?)
+  `).all(staffId, dayOfWeek, nextDay) as Array<{ day_of_week: number; start_time: string; end_time: string }>;
   db.close();
 
   if (slots.length === 0) return false;
 
-  // Check if any availability slot fully covers the shift
-  return slots.some(slot => {
-    if (slot.end_time <= slot.start_time) {
-      // Overnight availability covers [start_time→24:00] + [00:00→end_time]
-      if (endTime <= startTime) {
-        // Overnight shift: both evening and morning portions must be covered
-        return startTime >= slot.start_time && endTime <= slot.end_time;
+  const todaySlots = slots.filter(s => s.day_of_week === dayOfWeek);
+  const nextDaySlots = slots.filter(s => s.day_of_week === nextDay);
+
+  if (!isOvernightShift) {
+    // Regular shift: must be fully covered by a single slot on the same day
+    return todaySlots.some(slot => {
+      if (slot.end_time <= slot.start_time) {
+        // Overnight availability: shift fits in the evening or morning portion
+        return startTime >= slot.start_time || endTime <= slot.end_time;
       }
-      // Regular shift: must fall entirely in evening or morning portion
-      return startTime >= slot.start_time || endTime <= slot.end_time;
+      return startTime >= slot.start_time && endTime <= slot.end_time;
+    });
+  }
+
+  // Overnight shift (e.g. Sat 22:00 → Sun 06:00):
+  // Evening portion (startTime→24:00) must be covered on dayOfWeek,
+  // morning portion (00:00→endTime) must be covered on nextDay.
+  const eveningCovered = todaySlots.some(slot => {
+    if (slot.end_time <= slot.start_time) {
+      // Overnight availability: evening portion is [slot.start_time→24:00]
+      return startTime >= slot.start_time;
     }
-    return startTime >= slot.start_time && endTime <= slot.end_time;
+    // Regular availability that extends to end of day
+    return startTime >= slot.start_time && slot.end_time >= "24:00";
   });
+
+  const morningCovered = nextDaySlots.some(slot => {
+    if (slot.end_time <= slot.start_time) {
+      // Overnight availability: morning portion is [00:00→slot.end_time]
+      return endTime <= slot.end_time;
+    }
+    // Regular availability starting from beginning of day
+    return slot.start_time <= "00:00" && endTime <= slot.end_time;
+  });
+
+  // Also allow a single overnight availability slot on dayOfWeek that spans both portions
+  const singleSlotCovers = todaySlots.some(slot =>
+    slot.end_time <= slot.start_time &&
+    startTime >= slot.start_time &&
+    endTime <= slot.end_time
+  );
+
+  return singleSlotCovers || (eveningCovered && morningCovered);
 }
 
 export function hasOverlappingShift(
   staffId: number, date: string, startTime: string, endTime: string, excludeShiftId?: number
 ): boolean {
+  const isOvernightShift = endTime <= startTime;
+
+  // Compute adjacent dates for cross-day overlap checks
+  const dateObj = new Date(date + "T00:00:00");
+  const prevDate = new Date(dateObj);
+  prevDate.setDate(dateObj.getDate() - 1);
+  const nextDate = new Date(dateObj);
+  nextDate.setDate(dateObj.getDate() + 1);
+  const fmt = (d: Date) => d.toISOString().split("T")[0];
+
+  // Dates to query: always include the shift's date.
+  // If overnight, also check the next day (morning portion may overlap).
+  // Always check previous day too (an existing overnight shift from yesterday may overlap).
+  const datesToCheck = [fmt(prevDate), date, fmt(nextDate)];
+
   const db = getDb();
+  const placeholders = datesToCheck.map(() => '?').join(',');
+  const params: (string | number)[] = [staffId, ...datesToCheck];
+  if (excludeShiftId) params.push(excludeShiftId);
+
   const shifts = db.prepare(`
-    SELECT id, start_time, end_time FROM shift
-    WHERE assigned_staff_id = ? AND date = ?
+    SELECT id, date, start_time, end_time FROM shift
+    WHERE assigned_staff_id = ? AND date IN (${placeholders})
     AND status IN ('scheduled', 'covered')
     ${excludeShiftId ? 'AND id != ?' : ''}
-  `).all(...(excludeShiftId ? [staffId, date, excludeShiftId] : [staffId, date])) as Array<{
-    id: number; start_time: string; end_time: string;
+  `).all(...params) as Array<{
+    id: number; date: string; start_time: string; end_time: string;
   }>;
   db.close();
 
-  return shifts.some(s => timesOverlap(startTime, endTime, s.start_time, s.end_time));
+  return shifts.some(s => {
+    const existingIsOvernight = s.end_time <= s.start_time;
+
+    if (s.date === date) {
+      // Same day: direct time overlap check
+      return timesOverlap(startTime, endTime, s.start_time, s.end_time);
+    }
+
+    if (s.date === fmt(prevDate) && existingIsOvernight) {
+      // Yesterday's overnight shift — its morning portion [00:00, s.end_time] may overlap
+      // with the evening portion of our shift on today
+      return timesOverlap(startTime, endTime, "00:00", s.end_time);
+    }
+
+    if (s.date === fmt(nextDate) && isOvernightShift) {
+      // Our overnight shift's morning portion [00:00, endTime] may overlap
+      // with a shift on the next day
+      if (existingIsOvernight) {
+        // Both overnight: our morning vs their evening — no overlap on next day
+        return false;
+      }
+      return timesOverlap("00:00", endTime, s.start_time, s.end_time);
+    }
+
+    return false;
+  });
 }
 
 export function isStaffTrained(staffId: number, studentId: number): boolean {

@@ -33,11 +33,11 @@ function getWeekBounds(date: string): { weekStart: string; weekEnd: string } {
   const day = d.getDay(); // 0=Sun
   const monday = new Date(d);
   monday.setDate(d.getDate() - ((day + 6) % 7));
-  const friday = new Date(monday);
-  friday.setDate(monday.getDate() + 4);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
 
   const fmt = (dt: Date) => dt.toISOString().split("T")[0];
-  return { weekStart: fmt(monday), weekEnd: fmt(friday) };
+  return { weekStart: fmt(monday), weekEnd: fmt(sunday) };
 }
 
 export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
