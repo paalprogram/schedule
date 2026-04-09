@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import path from "path";
 import type { ScheduleWarning } from "@/types";
+import { MAX_SAME_STUDENT_PER_WEEK, MAX_SWIM_SHIFTS_PER_WEEK } from "./rules";
 
 function getDb() {
   const dbPath = path.join(process.cwd(), "data", "schedule.db");
@@ -249,7 +250,7 @@ export function detectWeekWarnings(weekStart: string, weekEnd: string): Schedule
     });
   }
 
-  // Check same-staff-same-student > 2x
+  // Check same-staff-same-student over limit
   const pairCounts = db.prepare(`
     SELECT assigned_staff_id, student_id, COUNT(*) as count,
            stf.name as staff_name, st.name as student_name
@@ -260,8 +261,8 @@ export function detectWeekWarnings(weekStart: string, weekEnd: string): Schedule
     AND s.status IN ('scheduled', 'covered')
     AND s.assigned_staff_id IS NOT NULL
     GROUP BY assigned_staff_id, student_id
-    HAVING count > 2
-  `).all(weekStart, weekEnd) as Array<{
+    HAVING count > ?
+  `).all(weekStart, weekEnd, MAX_SAME_STUDENT_PER_WEEK) as Array<{
     assigned_staff_id: number; student_id: number; count: number;
     staff_name: string; student_name: string;
   }>;
@@ -270,7 +271,7 @@ export function detectWeekWarnings(weekStart: string, weekEnd: string): Schedule
     warnings.push({
       type: "over_twice",
       severity: "warning",
-      message: `${p.staff_name} assigned to ${p.student_name} ${p.count} times this week (prefer ≤2)`,
+      message: `${p.staff_name} assigned to ${p.student_name} ${p.count} times this week (prefer \u2264${MAX_SAME_STUDENT_PER_WEEK})`,
       staffId: p.assigned_staff_id,
       studentId: p.student_id,
     });
@@ -307,7 +308,7 @@ export function detectWeekWarnings(weekStart: string, weekEnd: string): Schedule
     });
   }
 
-  // Check swim-heavy staff (more than 2 swim shifts in a week)
+  // Check swim-heavy staff
   const swimCounts = db.prepare(`
     SELECT assigned_staff_id, COUNT(*) as count, stf.name as staff_name
     FROM shift s
@@ -317,8 +318,8 @@ export function detectWeekWarnings(weekStart: string, weekEnd: string): Schedule
     AND s.status IN ('scheduled', 'covered')
     AND s.assigned_staff_id IS NOT NULL
     GROUP BY assigned_staff_id
-    HAVING count > 2
-  `).all(weekStart, weekEnd) as Array<{
+    HAVING count > ?
+  `).all(weekStart, weekEnd, MAX_SWIM_SHIFTS_PER_WEEK) as Array<{
     assigned_staff_id: number; count: number; staff_name: string;
   }>;
 

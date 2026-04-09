@@ -2,6 +2,7 @@
 import { useState, useEffect, use } from "react";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ArrowLeft, Plus, Trash2, Edit2 } from "lucide-react";
 import Link from "next/link";
 import { SHORT_DAYS } from "@/lib/utils";
@@ -22,6 +23,7 @@ interface StaffDetail {
 export default function StaffDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { toast } = useToast();
+  const confirm = useConfirm();
   const [staff, setStaff] = useState<StaffDetail | null>(null);
   const [showPto, setShowPto] = useState(false);
   const [allStudents, setAllStudents] = useState<Array<{ id: number; name: string }>>([]);
@@ -84,7 +86,7 @@ export default function StaffDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   async function deletePto(ptoId: number) {
-    if (!confirm("Remove this PTO entry?")) return;
+    if (!await confirm({ message: "Remove this PTO entry?", variant: "danger", confirmText: "Remove" })) return;
     const updatedPto = (staff?.pto || []).filter(p => p.id !== ptoId);
     await fetch(`/api/staff/${id}`, {
       method: "PUT",
@@ -114,7 +116,7 @@ export default function StaffDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   async function removeTraining(studentId: number) {
-    if (!confirm("Remove this training assignment?")) return;
+    if (!await confirm({ message: "Remove this training assignment?", variant: "danger", confirmText: "Remove" })) return;
     await fetch(`/api/training?staffId=${id}&studentId=${studentId}`, { method: "DELETE" });
     toast("Training assignment removed");
     reload();
@@ -152,7 +154,7 @@ export default function StaffDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   async function deleteAvailability(slotId: number) {
-    if (!confirm("Remove this availability slot?")) return;
+    if (!await confirm({ message: "Remove this availability slot?", variant: "danger", confirmText: "Remove" })) return;
     await fetch(`/api/availability/${slotId}`, { method: "DELETE" });
     toast("Availability slot removed");
     reload();

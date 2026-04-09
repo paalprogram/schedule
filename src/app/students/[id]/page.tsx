@@ -3,6 +3,7 @@ import { useState, useEffect, use } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ArrowLeft, Plus, Trash2, Edit2 } from "lucide-react";
 import Link from "next/link";
 import { SHORT_DAYS } from "@/lib/utils";
@@ -22,6 +23,7 @@ interface StudentDetail {
 export default function StudentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { toast } = useToast();
+  const confirm = useConfirm();
   const [student, setStudent] = useState<StudentDetail | null>(null);
   const [allStaff, setAllStaff] = useState<Array<{ id: number; name: string; active: number }>>([]);
   const [showStaff, setShowStaff] = useState(false);
@@ -66,7 +68,7 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
   }
 
   async function removeTraining(staffId: number) {
-    if (!confirm("Remove this training assignment?")) return;
+    if (!await confirm({ message: "Remove this training assignment?", variant: "danger", confirmText: "Remove" })) return;
     await fetch(`/api/training?staffId=${staffId}&studentId=${id}`, { method: "DELETE" });
     toast("Training assignment removed");
     reload();
@@ -108,7 +110,7 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
   }
 
   async function deleteTemplate(templateId: number) {
-    if (!confirm("Delete this shift template?")) return;
+    if (!await confirm({ message: "Delete this shift template?", variant: "danger", confirmText: "Delete" })) return;
     await fetch(`/api/templates/${templateId}`, { method: "DELETE" });
     toast("Shift template deleted");
     reload();

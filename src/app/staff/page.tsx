@@ -1,16 +1,27 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useStaff } from "@/lib/hooks";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
-import { Plus, Edit2, Droplets, Moon } from "lucide-react";
+import { Plus, Edit2, Droplets, Moon, Search } from "lucide-react";
 import Link from "next/link";
 
 export default function StaffPage() {
   const { data: staff, mutate } = useStaff();
   const { toast } = useToast();
   const [showAdd, setShowAdd] = useState(false);
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+
+  const filtered = useMemo(() => {
+    if (!staff) return [];
+    return staff.filter((s: Record<string, unknown>) => {
+      const nameMatch = !search || (s.name as string).toLowerCase().includes(search.toLowerCase());
+      const roleMatch = !roleFilter || s.role === roleFilter;
+      return nameMatch && roleMatch;
+    });
+  }, [staff, search, roleFilter]);
 
   async function handleAdd(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -44,6 +55,28 @@ export default function StaffPage() {
         </button>
       </div>
 
+      <div className="flex items-center gap-3 mb-4">
+        <div className="relative flex-1 max-w-xs">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by name..."
+            className="w-full border rounded-lg pl-9 pr-3 py-2 text-sm"
+          />
+        </div>
+        <select
+          value={roleFilter}
+          onChange={e => setRoleFilter(e.target.value)}
+          className="border rounded-lg px-3 py-2 text-sm"
+        >
+          <option value="">All Roles</option>
+          <option value="direct_care">Direct Care</option>
+          <option value="lead">Lead</option>
+          <option value="supervisor">Supervisor</option>
+        </select>
+      </div>
+
       <div className="bg-white rounded-lg shadow-sm border">
         <table className="w-full">
           <thead>
@@ -58,7 +91,7 @@ export default function StaffPage() {
             </tr>
           </thead>
           <tbody>
-            {staff?.map((s: Record<string, unknown>) => (
+            {filtered.map((s: Record<string, unknown>) => (
               <tr key={s.id as number} className="border-b last:border-0 hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium text-gray-900">{s.name as string}</td>
                 <td className="px-4 py-3 text-sm text-gray-600 capitalize">{(s.role as string).replace("_", " ")}</td>
@@ -95,8 +128,10 @@ export default function StaffPage() {
             ))}
           </tbody>
         </table>
-        {(!staff || staff.length === 0) && (
-          <div className="text-center py-8 text-gray-500">No staff members yet.</div>
+        {filtered.length === 0 && (
+          <div className="text-center py-8 text-gray-500">
+            {!staff || staff.length === 0 ? "No staff members yet." : "No staff match your filters."}
+          </div>
         )}
       </div>
 

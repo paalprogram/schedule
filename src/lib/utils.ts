@@ -9,11 +9,11 @@ export function getWeekBounds(dateStr?: string) {
   const day = date.getDay();
   const monday = new Date(date);
   monday.setDate(date.getDate() - ((day + 6) % 7));
-  const friday = new Date(monday);
-  friday.setDate(monday.getDate() + 4);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
 
   const fmt = (d: Date) => d.toISOString().split("T")[0];
-  return { weekStart: fmt(monday), weekEnd: fmt(friday) };
+  return { weekStart: fmt(monday), weekEnd: fmt(sunday) };
 }
 
 export function formatTime(time: string): string {

@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Nav } from "@/components/ui/nav";
 import { ToastProvider } from "@/components/ui/toast";
+import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,10 +32,12 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-gray-50">
         <ToastProvider>
-          <Nav />
-          <main className="flex-1 p-6 max-w-[1400px] mx-auto w-full">
-            {children}
-          </main>
+          <ConfirmProvider>
+            <Nav />
+            <main className="flex-1 p-6 max-w-[1400px] mx-auto w-full">
+              {children}
+            </main>
+          </ConfirmProvider>
         </ToastProvider>
       </body>
     </html>

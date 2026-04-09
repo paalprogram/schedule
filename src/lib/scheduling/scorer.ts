@@ -10,6 +10,7 @@ import {
   getStaffSwimCountForWeek,
   getStaffShiftsForWeek,
 } from "./conflicts";
+import { MAX_SAME_STUDENT_PER_WEEK, MAX_SWIM_SHIFTS_PER_WEEK, SCORE_WEIGHTS as W, LOAD_THRESHOLDS } from "./rules";
 
 function getDb() {
   const dbPath = path.join(process.cwd(), "data", "schedule.db");
@@ -98,7 +99,7 @@ export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
     tags.push(trained ? "trained" : "not trained");
     if (available) tags.push("available");
     else if (!excluded) tags.push("limited availability");
-    if (sameStudentCount >= 2) tags.push(`${sameStudentCount}x this week`);
+    if (sameStudentCount >= MAX_SAME_STUDENT_PER_WEEK) tags.push(`${sameStudentCount}x this week`);
     if (isSwim && swimEligible) tags.push("swim certified");
     if (isSwim && !swimEligible) tags.push("no swim cert");
     if (isSwim && swimCount > avgSwim) tags.push("swim-heavy");
@@ -107,7 +108,7 @@ export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
 
     // Build warnings
     if (!trained) warnings.push("Not trained on this student");
-    if (sameStudentCount >= 2) warnings.push(`Already assigned to this student ${sameStudentCount} times this week`);
+    if (sameStudentCount >= MAX_SAME_STUDENT_PER_WEEK) warnings.push(`Already assigned to this student ${sameStudentCount} times this week`);
     if (isSwim && !swimEligible) warnings.push("Not swim certified");
     if (isSwim && swimCount > avgSwim + 1) warnings.push(`High swim load (${swimCount} this week)`);
     if (isOvernight && !overnightEligible) warnings.push("Not cleared for overnight shifts");
@@ -116,47 +117,38 @@ export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
     // Score calculation
     let score = 0;
     if (!excluded) {
-      // Trained: +40
-      score += trained ? 40 : 0;
+      score += trained ? W.TRAINED : 0;
+      score += available ? W.AVAILABLE : W.AVAILABLE_PARTIAL;
 
-      // Available: +15
-      score += available ? 15 : 5;
+      if (sameStudentCount === 0) score += W.SAME_STUDENT_ZERO;
+      else if (sameStudentCount === 1) score += W.SAME_STUDENT_ONE;
 
-      // Same student count: +15
-      if (sameStudentCount === 0) score += 15;
-      else if (sameStudentCount === 1) score += 10;
-      // 2+ = 0
-
-      // Swim balance: +10
       if (isSwim) {
-        if (swimCount < avgSwim) score += 10;
-        else if (swimCount <= avgSwim + 1) score += 5;
+        if (swimCount < avgSwim) score += W.SWIM_BELOW_AVG;
+        else if (swimCount <= avgSwim + 1) score += W.SWIM_NEAR_AVG;
       } else {
-        score += 10; // non-swim shift, no penalty
+        score += W.NON_SWIM;
       }
 
-      // Overall load: +10
-      if (totalShiftsThisWeek <= 4) score += 10;
-      else if (totalShiftsThisWeek <= 6) score += 5;
+      if (totalShiftsThisWeek <= LOAD_THRESHOLDS.LOW) score += W.LOAD_LOW;
+      else if (totalShiftsThisWeek <= LOAD_THRESHOLDS.MEDIUM) score += W.LOAD_MEDIUM;
 
-      // Overnight: +5
       if (isOvernight) {
-        score += overnightEligible ? 5 : 0;
+        score += overnightEligible ? W.OVERNIGHT_ELIGIBLE : 0;
       } else {
-        score += 5;
+        score += W.OVERNIGHT_ELIGIBLE;
       }
 
-      // Swim capable: +5
       if (isSwim) {
-        score += swimEligible ? 5 : 0;
+        score += swimEligible ? W.SWIM_ELIGIBLE : 0;
       } else {
-        score += 5;
+        score += W.SWIM_ELIGIBLE;
       }
 
       // Penalties
-      if (sameStudentCount >= 3) score -= 20;
-      if (!trained) score -= 30;
-      if (isOvernight && !overnightEligible) score -= 50;
+      if (sameStudentCount >= MAX_SAME_STUDENT_PER_WEEK + 1) score += W.PENALTY_OVER_ASSIGNED;
+      if (!trained) score += W.PENALTY_UNTRAINED;
+      if (isOvernight && !overnightEligible) score += W.PENALTY_OVERNIGHT_INELIGIBLE;
     }
 
     return {

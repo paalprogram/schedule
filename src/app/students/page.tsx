@@ -1,10 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useStudents, useStaff } from "@/lib/hooks";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
-import { Plus, Edit2, Droplets } from "lucide-react";
+import { Plus, Edit2, Droplets, Search } from "lucide-react";
 import Link from "next/link";
 
 export default function StudentsPage() {
@@ -12,6 +12,15 @@ export default function StudentsPage() {
   const { data: staff } = useStaff();
   const { toast } = useToast();
   const [showAdd, setShowAdd] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const filtered = useMemo(() => {
+    if (!students) return [];
+    if (!search) return students;
+    return students.filter((s: Record<string, unknown>) =>
+      (s.name as string).toLowerCase().includes(search.toLowerCase())
+    );
+  }, [students, search]);
 
   async function handleAdd(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -44,6 +53,18 @@ export default function StudentsPage() {
         </button>
       </div>
 
+      <div className="mb-4">
+        <div className="relative max-w-xs">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by name..."
+            className="w-full border rounded-lg pl-9 pr-3 py-2 text-sm"
+          />
+        </div>
+      </div>
+
       <div className="bg-white rounded-lg shadow-sm border">
         <table className="w-full">
           <thead>
@@ -57,7 +78,7 @@ export default function StudentsPage() {
             </tr>
           </thead>
           <tbody>
-            {students?.map((s: Record<string, unknown>) => (
+            {filtered.map((s: Record<string, unknown>) => (
               <tr key={s.id as number} className="border-b last:border-0 hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium text-gray-900">{s.name as string}</td>
                 <td className="px-4 py-3">
@@ -87,8 +108,10 @@ export default function StudentsPage() {
             ))}
           </tbody>
         </table>
-        {(!students || students.length === 0) && (
-          <div className="text-center py-8 text-gray-500">No students yet.</div>
+        {filtered.length === 0 && (
+          <div className="text-center py-8 text-gray-500">
+            {!students || students.length === 0 ? "No students yet." : "No students match your search."}
+          </div>
         )}
       </div>
 

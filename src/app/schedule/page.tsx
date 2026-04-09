@@ -1,6 +1,6 @@
 "use client";
-import { useState, useCallback } from "react";
-import { useSchedule } from "@/lib/hooks";
+import { useState, useCallback, useMemo } from "react";
+import { useSchedule, useStudents, useStaff } from "@/lib/hooks";
 import { getWeekBounds } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
@@ -16,10 +16,14 @@ export default function SchedulePage() {
   const { weekStart, weekEnd } = getWeekBounds(today.toISOString().split("T")[0]);
 
   const { data: schedule, mutate } = useSchedule(weekStart, weekEnd);
+  const { data: allStudents } = useStudents();
+  const { data: allStaff } = useStaff();
   const [selectedShiftId, setSelectedShiftId] = useState<number | null>(null);
   const [showAddShift, setShowAddShift] = useState<string | null>(null); // date string
   const [generating, setGenerating] = useState(false);
   const [autoAssigning, setAutoAssigning] = useState(false);
+  const [studentFilter, setStudentFilter] = useState("");
+  const [staffFilter, setStaffFilter] = useState("");
   const { toast } = useToast();
 
   const refresh = useCallback(() => mutate(), [mutate]);
@@ -61,6 +65,19 @@ export default function SchedulePage() {
     window.print();
   }
 
+  const filteredDays = useMemo(() => {
+    if (!schedule?.days) return [];
+    if (!studentFilter && !staffFilter) return schedule.days;
+    return schedule.days.map((day: { date: string; dayName: string; shifts: Array<Record<string, unknown>> }) => ({
+      ...day,
+      shifts: day.shifts.filter((s: Record<string, unknown>) => {
+        if (studentFilter && String(s.student_id) !== studentFilter) return false;
+        if (staffFilter && String(s.assigned_staff_id || "") !== staffFilter) return false;
+        return true;
+      }),
+    }));
+  }, [schedule, studentFilter, staffFilter]);
+
   const warningCount = schedule?.warnings?.length || 0;
   const errorCount = schedule?.warnings?.filter((w: { severity: string }) => w.severity === "error").length || 0;
 
@@ -84,6 +101,34 @@ export default function SchedulePage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <select
+            value={studentFilter}
+            onChange={e => setStudentFilter(e.target.value)}
+            className="border rounded-lg px-3 py-2 text-sm"
+          >
+            <option value="">All Students</option>
+            {allStudents?.filter((s: Record<string, unknown>) => s.active).map((s: Record<string, unknown>) => (
+              <option key={s.id as number} value={String(s.id)}>{s.name as string}</option>
+            ))}
+          </select>
+          <select
+            value={staffFilter}
+            onChange={e => setStaffFilter(e.target.value)}
+            className="border rounded-lg px-3 py-2 text-sm"
+          >
+            <option value="">All Staff</option>
+            {allStaff?.filter((s: Record<string, unknown>) => s.active).map((s: Record<string, unknown>) => (
+              <option key={s.id as number} value={String(s.id)}>{s.name as string}</option>
+            ))}
+          </select>
+          {(studentFilter || staffFilter) && (
+            <button
+              onClick={() => { setStudentFilter(""); setStaffFilter(""); }}
+              className="text-xs text-blue-600 hover:text-blue-800"
+            >
+              Clear filters
+            </button>
+          )}
           <button
             onClick={handleGenerate}
             disabled={generating}
@@ -134,8 +179,8 @@ export default function SchedulePage() {
       )}
 
       {/* Schedule grid */}
-      <div className="grid grid-cols-5 gap-3 print:gap-1">
-        {schedule?.days?.map((day: { date: string; dayName: string; shifts: Array<Record<string, unknown>> }) => (
+      <div className="grid grid-cols-7 gap-3 print:gap-1">
+        {filteredDays.map((day: { date: string; dayName: string; shifts: Array<Record<string, unknown>> }) => (
           <div key={day.date} className="bg-white rounded-lg shadow-sm border">
             <div className="px-3 py-2 border-b bg-gray-50 rounded-t-lg flex items-center justify-between">
               <div>
