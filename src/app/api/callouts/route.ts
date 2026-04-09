@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db-utils";
+import { validateCalloutCreate } from "@/lib/validation";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -40,6 +41,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
+  const validationError = validateCalloutCreate(body);
+  if (validationError) return validationError;
+
   const db = getDb();
 
   // Mark the shift as called out
