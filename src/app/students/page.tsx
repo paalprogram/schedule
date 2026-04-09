@@ -3,12 +3,14 @@ import { useState } from "react";
 import { useStudents, useStaff } from "@/lib/hooks";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
+import { useToast } from "@/components/ui/toast";
 import { Plus, Edit2, Droplets } from "lucide-react";
 import Link from "next/link";
 
 export default function StudentsPage() {
   const { data: students, mutate } = useStudents();
   const { data: staff } = useStaff();
+  const { toast } = useToast();
   const [showAdd, setShowAdd] = useState(false);
 
   async function handleAdd(e: React.FormEvent<HTMLFormElement>) {
@@ -27,6 +29,7 @@ export default function StudentsPage() {
     });
     mutate();
     setShowAdd(false);
+    toast("Student added");
   }
 
   return (

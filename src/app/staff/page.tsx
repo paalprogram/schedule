@@ -3,11 +3,13 @@ import { useState } from "react";
 import { useStaff } from "@/lib/hooks";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
+import { useToast } from "@/components/ui/toast";
 import { Plus, Edit2, Droplets, Moon } from "lucide-react";
 import Link from "next/link";
 
 export default function StaffPage() {
   const { data: staff, mutate } = useStaff();
+  const { toast } = useToast();
   const [showAdd, setShowAdd] = useState(false);
 
   async function handleAdd(e: React.FormEvent<HTMLFormElement>) {
@@ -27,6 +29,7 @@ export default function StaffPage() {
     });
     mutate();
     setShowAdd(false);
+    toast("Staff member added");
   }
 
   return (

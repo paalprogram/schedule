@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useShiftCandidates } from "@/lib/hooks";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
+import { useToast } from "@/components/ui/toast";
 import { Check, AlertTriangle, X } from "lucide-react";
 import type { CandidateScore } from "@/types";
 
@@ -13,6 +14,7 @@ interface CandidatePanelProps {
 }
 
 export function CandidatePanel({ shiftId, onClose, onAssign }: CandidatePanelProps) {
+  const { toast } = useToast();
   const { data: candidates } = useShiftCandidates(shiftId);
   const [shift, setShift] = useState<Record<string, unknown> | null>(null);
   const [overrideNote, setOverrideNote] = useState("");
@@ -43,6 +45,7 @@ export function CandidatePanel({ shiftId, onClose, onAssign }: CandidatePanelPro
     });
     setAssigning(null);
     setOverrideNote("");
+    toast("Staff assigned to shift");
     onAssign();
     onClose();
   }
@@ -53,6 +56,7 @@ export function CandidatePanel({ shiftId, onClose, onAssign }: CandidatePanelPro
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ assigned_staff_id: null, status: "open" }),
     });
+    toast("Staff unassigned from shift", "warning");
     onAssign();
     onClose();
   }

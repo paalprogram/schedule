@@ -1,5 +1,6 @@
 "use client";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/components/ui/toast";
 import { formatTime } from "@/lib/utils";
 import { AlertTriangle, Droplets, Moon, PhoneOff } from "lucide-react";
 
@@ -11,6 +12,7 @@ interface ShiftCardProps {
 }
 
 export function ShiftCard({ shift, warnings, onClick, onCallout }: ShiftCardProps) {
+  const { toast } = useToast();
   const isOpen = !shift.assigned_staff_id || shift.status === "open" || shift.status === "called_out";
   const isSwim = shift.needs_swim_support || shift.activity_type === "swimming";
   const isOvernight = shift.shift_type === "overnight";
@@ -29,6 +31,7 @@ export function ShiftCard({ shift, warnings, onClick, onCallout }: ShiftCardProp
         reason: "Called out",
       }),
     });
+    toast(`${shift.staff_name} marked as called out`, "warning");
     onCallout();
   }
 

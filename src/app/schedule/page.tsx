@@ -1,9 +1,9 @@
 "use client";
 import { useState, useCallback } from "react";
 import { useSchedule } from "@/lib/hooks";
-import { getWeekBounds, formatTime } from "@/lib/utils";
+import { getWeekBounds } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { Modal } from "@/components/ui/modal";
+import { useToast } from "@/components/ui/toast";
 import { ChevronLeft, ChevronRight, Wand2, Download, Printer, Plus, AlertTriangle } from "lucide-react";
 import { ShiftCard } from "@/components/schedule/shift-card";
 import { CandidatePanel } from "@/components/schedule/candidate-panel";
@@ -20,6 +20,7 @@ export default function SchedulePage() {
   const [showAddShift, setShowAddShift] = useState<string | null>(null); // date string
   const [generating, setGenerating] = useState(false);
   const [autoAssigning, setAutoAssigning] = useState(false);
+  const { toast } = useToast();
 
   const refresh = useCallback(() => mutate(), [mutate]);
 
@@ -32,6 +33,7 @@ export default function SchedulePage() {
     });
     refresh();
     setGenerating(false);
+    toast("Shifts generated from templates");
   }
 
   async function handleAutoAssign() {
@@ -44,7 +46,11 @@ export default function SchedulePage() {
     const result = await res.json();
     refresh();
     setAutoAssigning(false);
-    alert(`Auto-assign complete: ${result.assigned} assigned, ${result.failed} could not be filled`);
+    if (result.failed > 0) {
+      toast(`Assigned ${result.assigned} shifts, ${result.failed} could not be filled`, "warning");
+    } else {
+      toast(`All ${result.assigned} open shifts assigned`);
+    }
   }
 
   function handleExportCSV() {

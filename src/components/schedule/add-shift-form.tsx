@@ -1,6 +1,7 @@
 "use client";
 import { useStudents } from "@/lib/hooks";
 import { Modal } from "@/components/ui/modal";
+import { useToast } from "@/components/ui/toast";
 
 interface AddShiftFormProps {
   date: string;
@@ -10,6 +11,7 @@ interface AddShiftFormProps {
 
 export function AddShiftForm({ date, onClose, onCreated }: AddShiftFormProps) {
   const { data: students } = useStudents();
+  const { toast } = useToast();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -28,6 +30,7 @@ export function AddShiftForm({ date, onClose, onCreated }: AddShiftFormProps) {
         notes: form.get("notes") || null,
       }),
     });
+    toast("Shift created");
     onCreated();
     onClose();
   }
