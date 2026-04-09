@@ -19,6 +19,7 @@ export const student = sqliteTable("student", {
   name: text("name").notNull(),
   active: integer("active", { mode: "boolean" }).default(true),
   requiresSwimSupport: integer("requires_swim_support", { mode: "boolean" }).default(false),
+  staffingRatio: integer("staffing_ratio").default(1),
   notes: text("notes"),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
   updatedAt: text("updated_at").default(sql`(datetime('now'))`),

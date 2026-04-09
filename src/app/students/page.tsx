@@ -33,6 +33,7 @@ export default function StudentsPage() {
       body: JSON.stringify({
         name: form.get("name"),
         requires_swim_support: form.get("requires_swim_support") === "on",
+        staffing_ratio: parseInt(form.get("staffing_ratio") as string) || 1,
         notes: form.get("notes") || null,
         trained_staff_ids: trainedIds,
       }),
@@ -74,6 +75,7 @@ export default function StudentsPage() {
             <tr className="border-b bg-gray-50">
               <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Name</th>
               <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Swim Support</th>
+              <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Ratio</th>
               <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Trained Staff</th>
               <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Notes</th>
               <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Status</th>
@@ -89,6 +91,13 @@ export default function StudentsPage() {
                     <Badge variant="info"><Droplets size={12} className="mr-1" />Yes</Badge>
                   ) : (
                     <span className="text-sm text-gray-400">No</span>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  {(s.staffing_ratio as number) > 1 ? (
+                    <Badge variant="warning">{s.staffing_ratio as number}:1</Badge>
+                  ) : (
+                    <span className="text-sm text-gray-400">1:1</span>
                   )}
                 </td>
                 <td className="px-4 py-3 text-sm text-gray-600">
@@ -124,10 +133,19 @@ export default function StudentsPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
             <input name="name" required className="w-full border rounded-lg px-3 py-2 text-sm" />
           </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="requires_swim_support" className="rounded" />
-            Requires Swim Support
-          </label>
+          <div className="flex gap-6">
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="requires_swim_support" className="rounded" />
+              Requires Swim Support
+            </label>
+            <div className="flex items-center gap-2 text-sm">
+              <label className="font-medium text-gray-700">Staffing Ratio</label>
+              <select name="staffing_ratio" className="border rounded-lg px-2 py-1 text-sm">
+                <option value="1">1:1</option>
+                <option value="2">2:1</option>
+              </select>
+            </div>
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
             <textarea name="notes" className="w-full border rounded-lg px-3 py-2 text-sm" rows={2} />

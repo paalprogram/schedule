@@ -4,6 +4,7 @@ import { useShiftCandidates } from "@/lib/hooks";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Check, AlertTriangle, X } from "lucide-react";
 import type { CandidateScore } from "@/types";
 
@@ -15,6 +16,7 @@ interface CandidatePanelProps {
 
 export function CandidatePanel({ shiftId, onClose, onAssign }: CandidatePanelProps) {
   const { toast } = useToast();
+  const confirm = useConfirm();
   const { data: candidates, error: candidatesError, mutate: mutateCandidates } = useShiftCandidates(shiftId);
   const [shift, setShift] = useState<Record<string, unknown> | null>(null);
   const [overrideNote, setOverrideNote] = useState("");
@@ -28,13 +30,23 @@ export function CandidatePanel({ shiftId, onClose, onAssign }: CandidatePanelPro
     }
   }, [shiftId]);
 
-  async function handleAssign(staffId: number, hasWarnings: boolean) {
+  async function handleAssign(staffId: number, candidate: CandidateScore) {
+    const cascadeWarnings = candidate.warnings.filter(w => w.startsWith("Assigning will uncover"));
+    const isUntrained = candidate.warnings.some(w => w.includes("Not trained"));
+
+    if (cascadeWarnings.length > 0) {
+      const msg = cascadeWarnings.join("\n") + "\n\nThis will leave another student uncovered. Continue?";
+      if (!await confirm({ title: "Cascade Warning", message: msg, confirmText: "Assign Anyway", variant: "danger" })) return;
+    } else if (isUntrained) {
+      if (!await confirm({ title: "Untrained Staff", message: "This staff member is not trained on this student. Proceed with override?", confirmText: "Assign with Override", variant: "danger" })) return;
+    }
+
     setAssigning(staffId);
     const body: Record<string, unknown> = {
       assigned_staff_id: staffId,
       status: "scheduled",
     };
-    if (hasWarnings && overrideNote) {
+    if (candidate.warnings.length > 0 && overrideNote) {
       body.override_note = overrideNote;
     }
 
@@ -117,7 +129,7 @@ export function CandidatePanel({ shiftId, onClose, onAssign }: CandidatePanelPro
                 </div>
                 {!c.excluded && (
                   <button
-                    onClick={() => handleAssign(c.staffId, c.warnings.length > 0)}
+                    onClick={() => handleAssign(c.staffId, c)}
                     disabled={assigning === c.staffId}
                     className="flex items-center gap-1 px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 disabled:opacity-50"
                   >
@@ -130,7 +142,7 @@ export function CandidatePanel({ shiftId, onClose, onAssign }: CandidatePanelPro
                 {c.tags.map((tag, i) => {
                   const variant = tag.includes("trained") && !tag.includes("not")
                     ? "success"
-                    : tag.includes("not") || tag.includes("conflict") || tag.includes("PTO")
+                    : tag.includes("not") || tag.includes("conflict") || tag.includes("PTO") || tag.includes("cascade")
                     ? "error"
                     : tag.includes("heavy") || tag.includes("2x") || tag.includes("3x")
                     ? "warning"
@@ -147,11 +159,14 @@ export function CandidatePanel({ shiftId, onClose, onAssign }: CandidatePanelPro
 
               {c.warnings.length > 0 && !c.excluded && (
                 <div className="space-y-0.5 mt-1">
-                  {c.warnings.map((w, i) => (
-                    <div key={i} className="text-xs text-yellow-700 flex items-center gap-1">
-                      <AlertTriangle size={10} /> {w}
-                    </div>
-                  ))}
+                  {c.warnings.map((w, i) => {
+                    const isCascade = w.startsWith("Assigning will uncover");
+                    return (
+                      <div key={i} className={`text-xs flex items-center gap-1 ${isCascade ? "text-red-600 font-medium" : "text-yellow-700"}`}>
+                        <AlertTriangle size={10} /> {w}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

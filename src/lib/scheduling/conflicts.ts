@@ -199,6 +199,62 @@ export function hasOverlappingShift(
   });
 }
 
+export function getOverlappingAssignments(
+  staffId: number, date: string, startTime: string, endTime: string, excludeShiftId?: number
+): Array<{ shiftId: number; studentId: number; studentName: string; startTime: string; endTime: string }> {
+  const isOvernightShift = endTime <= startTime;
+  const dateObj = new Date(date + "T00:00:00");
+  const prevDate = new Date(dateObj);
+  prevDate.setDate(dateObj.getDate() - 1);
+  const nextDate = new Date(dateObj);
+  nextDate.setDate(dateObj.getDate() + 1);
+  const fmt = (d: Date) => d.toISOString().split("T")[0];
+  const datesToCheck = [fmt(prevDate), date, fmt(nextDate)];
+
+  const db = getDb();
+  const placeholders = datesToCheck.map(() => '?').join(',');
+  const params: (string | number)[] = [staffId, ...datesToCheck];
+  if (excludeShiftId) params.push(excludeShiftId);
+
+  const shifts = db.prepare(`
+    SELECT s.id, s.date, s.start_time, s.end_time, s.student_id, st.name as student_name
+    FROM shift s
+    JOIN student st ON s.student_id = st.id
+    WHERE s.assigned_staff_id = ? AND s.date IN (${placeholders})
+    AND s.status IN ('scheduled', 'covered')
+    ${excludeShiftId ? 'AND s.id != ?' : ''}
+  `).all(...params) as Array<{
+    id: number; date: string; start_time: string; end_time: string;
+    student_id: number; student_name: string;
+  }>;
+  db.close();
+
+  const result: Array<{ shiftId: number; studentId: number; studentName: string; startTime: string; endTime: string }> = [];
+  for (const s of shifts) {
+    const existingIsOvernight = s.end_time <= s.start_time;
+    let overlaps = false;
+
+    if (s.date === date) {
+      overlaps = timesOverlap(startTime, endTime, s.start_time, s.end_time);
+    } else if (s.date === fmt(prevDate) && existingIsOvernight) {
+      overlaps = timesOverlap(startTime, endTime, "00:00", s.end_time);
+    } else if (s.date === fmt(nextDate) && isOvernightShift && !existingIsOvernight) {
+      overlaps = timesOverlap("00:00", endTime, s.start_time, s.end_time);
+    }
+
+    if (overlaps) {
+      result.push({
+        shiftId: s.id,
+        studentId: s.student_id,
+        studentName: s.student_name,
+        startTime: s.start_time,
+        endTime: s.end_time,
+      });
+    }
+  }
+  return result;
+}
+
 export function isStaffTrained(staffId: number, studentId: number): boolean {
   const db = getDb();
   const result = db.prepare(`

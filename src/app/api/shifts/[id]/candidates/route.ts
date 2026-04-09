@@ -22,6 +22,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     shiftType: shift.shift_type,
     needsSwimSupport: !!shift.needs_swim_support,
     excludeShiftId: shift.id,
+    mode: "manual",
   });
 
   return NextResponse.json(candidates);

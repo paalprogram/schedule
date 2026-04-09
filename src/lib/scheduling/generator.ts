@@ -27,6 +27,10 @@ export function generateWeekFromTemplates(weekStartDate: string) {
     activity_type: string; needs_swim_support: number; notes: string | null;
   }>;
 
+  // Build student staffing ratio lookup
+  const students = db.prepare(`SELECT id, staffing_ratio FROM student`).all() as Array<{ id: number; staffing_ratio: number }>;
+  const ratioMap = new Map(students.map(s => [s.id, s.staffing_ratio || 1]));
+
   const insertShift = db.prepare(`
     INSERT INTO shift (student_id, assigned_staff_id, date, start_time, end_time, shift_type, activity_type, needs_swim_support, status, notes)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -39,23 +43,26 @@ export function generateWeekFromTemplates(weekStartDate: string) {
     const targetDate = dates.find(d => new Date(d + "T00:00:00").getDay() === template.day_of_week);
     if (!targetDate) continue;
 
-    // Check if shift already exists
-    const existing = db.prepare(`
-      SELECT id FROM shift
+    // Check how many shifts already exist for this slot
+    const existingCount = (db.prepare(`
+      SELECT COUNT(*) as count FROM shift
       WHERE student_id = ? AND date = ? AND start_time = ? AND end_time = ?
-    `).get(template.student_id, targetDate, template.start_time, template.end_time);
+    `).get(template.student_id, targetDate, template.start_time, template.end_time) as { count: number }).count;
 
-    if (existing) continue;
+    // Create enough shifts to reach the staffing ratio
+    const ratio = ratioMap.get(template.student_id) || 1;
+    const slotsNeeded = Math.max(0, ratio - existingCount);
 
-    // Create shift as open, then try to auto-assign
-    insertShift.run(
-      template.student_id, null, targetDate,
-      template.start_time, template.end_time,
-      template.shift_type, template.activity_type,
-      template.needs_swim_support, "open",
-      template.notes
-    );
-    created++;
+    for (let slot = 0; slot < slotsNeeded; slot++) {
+      insertShift.run(
+        template.student_id, null, targetDate,
+        template.start_time, template.end_time,
+        template.shift_type, template.activity_type,
+        template.needs_swim_support, "open",
+        template.notes
+      );
+      created++;
+    }
   }
 
   db.close();

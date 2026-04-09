@@ -9,7 +9,7 @@ interface ShiftCardProps {
   shift: Record<string, unknown>;
   warnings: Array<{ severity: string; message: string }>;
   onClick: () => void;
-  onCallout: () => void;
+  onCallout: (shiftId: number) => void;
   onDragStart?: (shiftId: number) => void;
   onDragEnd?: () => void;
 }
@@ -36,7 +36,7 @@ export function ShiftCard({ shift, warnings, onClick, onCallout, onDragStart, on
       }),
     });
     toast(`${shift.staff_name} marked as called out`, "warning");
-    onCallout();
+    onCallout(shift.id as number);
   }
 
   return (

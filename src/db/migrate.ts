@@ -103,5 +103,12 @@ db.exec(`
   );
 `);
 
+// Add staffing_ratio column if it doesn't exist
+try {
+  db.exec(`ALTER TABLE student ADD COLUMN staffing_ratio INTEGER DEFAULT 1`);
+} catch {
+  // Column already exists
+}
+
 console.log("Database migrated successfully at", dbPath);
 db.close();

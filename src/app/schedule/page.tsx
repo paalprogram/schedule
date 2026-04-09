@@ -235,7 +235,7 @@ export default function SchedulePage() {
                     shift={shift}
                     warnings={schedule?.warnings?.filter((w: { shiftId?: number }) => w.shiftId === shift.id) || []}
                     onClick={() => setSelectedShiftId(shift.id as number)}
-                    onCallout={refresh}
+                    onCallout={(shiftId) => { refresh(); setSelectedShiftId(shiftId); }}
                     onDragStart={(id) => setDraggingShiftId(id)}
                     onDragEnd={() => { setDraggingShiftId(null); setDropHighlight(null); }}
                   />

@@ -5,6 +5,7 @@ import {
   isStaffOnPto,
   isStaffAvailable,
   hasOverlappingShift,
+  getOverlappingAssignments,
   isStaffTrained,
   getStaffStudentCountForWeek,
   getStaffSwimCountForWeek,
@@ -27,6 +28,7 @@ interface ScoreShiftInput {
   shiftType: string;
   needsSwimSupport: boolean;
   excludeShiftId?: number; // when re-scoring for an existing shift
+  mode?: "auto" | "manual"; // auto = hard-exclude untrained; manual = show with warnings
 }
 
 function getWeekBounds(date: string): { weekStart: string; weekEnd: string } {
@@ -79,15 +81,32 @@ export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
 
     const overlap = hasOverlappingShift(s.id, input.date, input.startTime, input.endTime, input.excludeShiftId);
     if (overlap) {
-      excluded = true;
-      excludeReason = excludeReason ? excludeReason + " + Overlap conflict" : "Overlap conflict";
-      tags.push("overlap conflict");
+      if (input.mode === "manual") {
+        // In manual mode, show cascade warnings instead of hard-excluding
+        const overlapping = getOverlappingAssignments(s.id, input.date, input.startTime, input.endTime, input.excludeShiftId);
+        for (const o of overlapping) {
+          warnings.push(`Assigning will uncover ${o.studentName}'s ${o.startTime}-${o.endTime} shift`);
+        }
+        tags.push("cascade risk");
+      } else {
+        excluded = true;
+        excludeReason = excludeReason ? excludeReason + " + Overlap conflict" : "Overlap conflict";
+        tags.push("overlap conflict");
+      }
     }
 
     const available = isStaffAvailable(s.id, dayOfWeek, input.startTime, input.endTime);
 
     // Factors
     const trained = isStaffTrained(s.id, input.studentId);
+
+    // Hard-exclude untrained in auto mode
+    if (!trained && input.mode !== "manual") {
+      excluded = true;
+      excludeReason = excludeReason ? excludeReason + " + Not trained" : "Not trained on this student";
+      tags.push("not trained");
+    }
+
     const sameStudentCount = getStaffStudentCountForWeek(s.id, input.studentId, weekStart, weekEnd);
     const swimCount = swimCounts[idx];
     const weekShifts = getStaffShiftsForWeek(s.id, weekStart, weekEnd);

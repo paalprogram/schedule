@@ -16,7 +16,7 @@ interface ShiftTemplate {
 
 interface StudentDetail {
   id: number; name: string; active: number;
-  requires_swim_support: number; notes: string | null;
+  requires_swim_support: number; staffing_ratio: number; notes: string | null;
   trainedStaff: Array<{ staff_id: number; staff_name: string; can_cover_swim: number; can_work_overnight: number }>;
   templates: ShiftTemplate[];
 }
@@ -55,6 +55,7 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
         name: form.get("name"),
         active: form.get("active") === "on",
         requires_swim_support: form.get("requires_swim_support") === "on",
+        staffing_ratio: parseInt(form.get("staffing_ratio") as string) || 1,
         notes: form.get("notes") || null,
       }),
     });
@@ -157,6 +158,13 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
                   <input type="checkbox" name="requires_swim_support" defaultChecked={!!student.requires_swim_support} className="rounded" />
                   Requires Swim Support
                 </label>
+                <div className="flex items-center gap-2 text-sm">
+                  <label className="font-medium text-gray-700">Staffing Ratio</label>
+                  <select name="staffing_ratio" defaultValue={student.staffing_ratio || 1} className="border rounded-lg px-2 py-1 text-sm">
+                    <option value="1">1:1</option>
+                    <option value="2">2:1</option>
+                  </select>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>

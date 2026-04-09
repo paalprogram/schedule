@@ -16,6 +16,7 @@ export interface Student {
   name: string;
   active: boolean;
   requiresSwimSupport: boolean;
+  staffingRatio: number;
   notes: string | null;
   createdAt: string;
   updatedAt: string;

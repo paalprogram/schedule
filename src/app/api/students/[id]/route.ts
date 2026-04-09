@@ -33,9 +33,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const db = getDb();
 
   db.prepare(`
-    UPDATE student SET name = ?, active = ?, requires_swim_support = ?, notes = ?, updated_at = datetime('now')
+    UPDATE student SET name = ?, active = ?, requires_swim_support = ?, staffing_ratio = ?, notes = ?, updated_at = datetime('now')
     WHERE id = ?
-  `).run(body.name, body.active ? 1 : 0, body.requires_swim_support ? 1 : 0, body.notes || null, id);
+  `).run(body.name, body.active ? 1 : 0, body.requires_swim_support ? 1 : 0, body.staffing_ratio || 1, body.notes || null, id);
 
   // Update training if provided
   if (body.trained_staff_ids && Array.isArray(body.trained_staff_ids)) {

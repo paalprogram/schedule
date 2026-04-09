@@ -22,9 +22,9 @@ export async function POST(req: NextRequest) {
   const db = getDb();
 
   const result = db.prepare(`
-    INSERT INTO student (name, requires_swim_support, notes)
-    VALUES (?, ?, ?)
-  `).run(body.name, body.requires_swim_support ? 1 : 0, body.notes || null);
+    INSERT INTO student (name, requires_swim_support, staffing_ratio, notes)
+    VALUES (?, ?, ?, ?)
+  `).run(body.name, body.requires_swim_support ? 1 : 0, body.staffing_ratio || 1, body.notes || null);
 
   // Insert training if provided
   if (body.trained_staff_ids && Array.isArray(body.trained_staff_ids)) {
