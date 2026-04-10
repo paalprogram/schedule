@@ -1,4 +1,4 @@
-app = "scheduleapp"
+app = "schedule"
 primary_region = "ewr"
 
 [env]
