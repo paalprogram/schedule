@@ -22,6 +22,16 @@ export async function GET(req: NextRequest) {
   `).all(weekStart!, weekEnd!);
   db.close();
 
+  // Load student absences for the week
+  const absenceDb = getDb(true);
+  const absences = absenceDb.prepare(`
+    SELECT student_id, date FROM student_absence
+    WHERE date >= ? AND date <= ?
+  `).all(weekStart!, weekEnd!) as Array<{ student_id: number; date: string }>;
+  absenceDb.close();
+
+  const absenceSet = new Set(absences.map(a => `${a.student_id}:${a.date}`));
+
   const warnings = detectWeekWarnings(weekStart!, weekEnd!);
 
   // Group shifts by date
@@ -37,13 +47,24 @@ export async function GET(req: NextRequest) {
   const days = Array.from(dateSet).map(date => ({
     date,
     dayName: dayNames[new Date(date + "T00:00:00").getDay()],
-    shifts: (shifts as Array<Record<string, unknown>>).filter((s) => s.date === date),
+    shifts: (shifts as Array<Record<string, unknown>>).filter((s) => s.date === date).map(s => ({
+      ...s,
+      studentAbsent: absenceSet.has(`${s.student_id}:${s.date}`),
+    })),
   }));
+
+  // Build a list of absent students per date for the UI
+  const absencesByDate: Record<string, number[]> = {};
+  for (const a of absences) {
+    if (!absencesByDate[a.date]) absencesByDate[a.date] = [];
+    absencesByDate[a.date].push(a.student_id);
+  }
 
   return NextResponse.json({
     weekStart,
     weekEnd,
     days,
     warnings,
+    absences: absencesByDate,
   });
 }

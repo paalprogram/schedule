@@ -1,10 +1,10 @@
 "use client";
 import { useState, useCallback, useMemo } from "react";
-import { useSchedule, useStudents, useStaff } from "@/lib/hooks";
+import { useSchedule, useStudents, useStaff, useAbsences } from "@/lib/hooks";
 import { getWeekBounds } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
-import { ChevronLeft, ChevronRight, Wand2, Download, Printer, Plus, AlertTriangle, UserX, FileText } from "lucide-react";
+import { ChevronLeft, ChevronRight, Wand2, Download, Printer, Plus, AlertTriangle, UserX, FileText, UserMinus } from "lucide-react";
 import { ErrorBanner } from "@/components/ui/error-banner";
 import { ShiftCard } from "@/components/schedule/shift-card";
 import { CandidatePanel } from "@/components/schedule/candidate-panel";
@@ -27,6 +27,8 @@ export default function SchedulePage() {
   const [staffFilter, setStaffFilter] = useState("");
   const [draggingShiftId, setDraggingShiftId] = useState<number | null>(null);
   const [dropHighlight, setDropHighlight] = useState<number | "unassign" | null>(null);
+  const [showAbsencePanel, setShowAbsencePanel] = useState(false);
+  const { data: absences, mutate: mutateAbsences } = useAbsences(weekStart, weekEnd);
   const { toast } = useToast();
 
   const refresh = useCallback(() => mutate(), [mutate]);
@@ -78,6 +80,22 @@ export default function SchedulePage() {
     } else {
       toast(`All ${result.assigned} open shifts assigned`);
     }
+  }
+
+  async function handleToggleAbsence(studentId: number, date: string, isCurrentlyAbsent: boolean) {
+    if (isCurrentlyAbsent) {
+      await fetch(`/api/absences?student_id=${studentId}&date=${date}`, { method: "DELETE" });
+      toast("Absence removed");
+    } else {
+      await fetch("/api/absences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ student_id: studentId, date }),
+      });
+      toast("Student marked as OUT", "warning");
+    }
+    mutateAbsences();
+    refresh();
   }
 
   function handleExportCSV() {
@@ -170,6 +188,16 @@ export default function SchedulePage() {
           >
             <Wand2 size={14} /> {autoAssigning ? "Assigning..." : "Auto-Assign Open"}
           </button>
+          <button
+            onClick={() => setShowAbsencePanel(p => !p)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm ${
+              showAbsencePanel
+                ? "bg-orange-600 text-white hover:bg-orange-700"
+                : "border hover:bg-gray-50"
+            }`}
+          >
+            <UserMinus size={14} /> {showAbsencePanel ? "Done Marking" : "Mark Absences"}
+          </button>
           <button onClick={handleExportPDF} className="flex items-center gap-1.5 px-3 py-2 border rounded-lg text-sm hover:bg-gray-50">
             <FileText size={14} /> PDF
           </button>
@@ -225,6 +253,31 @@ export default function SchedulePage() {
                 <Plus size={14} />
               </button>
             </div>
+            {showAbsencePanel && allStudents && (
+              <div className="px-2 pt-2 pb-1 border-b bg-orange-50">
+                <div className="text-xs font-medium text-orange-700 mb-1">Toggle student absences:</div>
+                <div className="flex flex-wrap gap-1">
+                  {allStudents.filter((s: Record<string, unknown>) => s.active).map((s: Record<string, unknown>) => {
+                    const absentIds: number[] = schedule?.absences?.[day.date] || [];
+                    const isOut = absentIds.includes(s.id as number);
+                    return (
+                      <button
+                        key={s.id as number}
+                        onClick={() => handleToggleAbsence(s.id as number, day.date, isOut)}
+                        className={`px-1.5 py-0.5 rounded text-xs font-medium transition-colors ${
+                          isOut
+                            ? "bg-gray-400 text-white"
+                            : "bg-white border border-gray-300 text-gray-600 hover:border-orange-400"
+                        }`}
+                        title={isOut ? `Mark ${s.name} present` : `Mark ${s.name} as OUT`}
+                      >
+                        {isOut ? "OUT" : ""} {s.name as string}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <div className="p-2 space-y-2 min-h-[200px]">
               {day.shifts.length === 0 ? (
                 <div className="text-xs text-gray-400 text-center py-4">No shifts</div>

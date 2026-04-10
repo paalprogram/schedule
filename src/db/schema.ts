@@ -77,6 +77,35 @@ export const callout = sqliteTable("callout", {
   resolved: integer("resolved", { mode: "boolean" }).default(false),
 });
 
+export const studentAbsence = sqliteTable("student_absence", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  studentId: integer("student_id").notNull().references(() => student.id),
+  date: text("date").notNull(), // "2026-04-10"
+  reason: text("reason"),
+  createdAt: text("created_at").default(sql`(datetime('now'))`),
+});
+
+export const staffDedicatedRole = sqliteTable("staff_dedicated_role", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  staffId: integer("staff_id").notNull().references(() => staff.id),
+  role: text("role").notNull(), // academics, crisis_support, other
+  label: text("label"), // display label like "Academics", "Crisis Support"
+  dayOfWeek: integer("day_of_week"), // null = every day, 0-6 = specific day
+  startDate: text("start_date"), // null = ongoing
+  endDate: text("end_date"), // null = ongoing
+  notes: text("notes"),
+  createdAt: text("created_at").default(sql`(datetime('now'))`),
+});
+
+export const staffStudentPreference = sqliteTable("staff_student_preference", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  staffId: integer("staff_id").notNull().references(() => staff.id),
+  studentId: integer("student_id").notNull().references(() => student.id),
+  level: text("level").notNull().default("preferred"), // preferred, neutral, avoid
+  reason: text("reason"),
+  createdAt: text("created_at").default(sql`(datetime('now'))`),
+});
+
 export const shiftTemplate = sqliteTable("shift_template", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   studentId: integer("student_id").notNull().references(() => student.id),

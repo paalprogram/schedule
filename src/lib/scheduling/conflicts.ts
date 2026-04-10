@@ -255,6 +255,40 @@ export function getOverlappingAssignments(
   return result;
 }
 
+export function isStudentAbsent(studentId: number, date: string): boolean {
+  const db = getDb();
+  const result = db.prepare(`
+    SELECT COUNT(*) as count FROM student_absence
+    WHERE student_id = ? AND date = ?
+  `).get(studentId, date) as { count: number };
+  db.close();
+  return result.count > 0;
+}
+
+export function hasStaffDedicatedRole(staffId: number, date: string): boolean {
+  const dayOfWeek = new Date(date + "T00:00:00").getDay();
+  const db = getDb();
+  const result = db.prepare(`
+    SELECT COUNT(*) as count FROM staff_dedicated_role
+    WHERE staff_id = ?
+    AND (day_of_week IS NULL OR day_of_week = ?)
+    AND (start_date IS NULL OR start_date <= ?)
+    AND (end_date IS NULL OR end_date >= ?)
+  `).get(staffId, dayOfWeek, date, date) as { count: number };
+  db.close();
+  return result.count > 0;
+}
+
+export function getStaffStudentPreference(staffId: number, studentId: number): string | null {
+  const db = getDb();
+  const result = db.prepare(`
+    SELECT level FROM staff_student_preference
+    WHERE staff_id = ? AND student_id = ?
+  `).get(staffId, studentId) as { level: string } | undefined;
+  db.close();
+  return result?.level ?? null;
+}
+
 export function isStaffTrained(staffId: number, studentId: number): boolean {
   const db = getDb();
   const result = db.prepare(`
@@ -385,6 +419,57 @@ export function detectWeekWarnings(weekStart: string, weekEnd: string): Schedule
       severity: "warning",
       message: `${sc.staff_name} has ${sc.count} swim assignments this week`,
       staffId: sc.assigned_staff_id,
+    });
+  }
+
+  // Check shifts assigned to absent students
+  const absentConflicts = db.prepare(`
+    SELECT s.id, s.date, st.name as student_name, s.student_id
+    FROM shift s
+    JOIN student st ON s.student_id = st.id
+    JOIN student_absence sa ON sa.student_id = s.student_id AND sa.date = s.date
+    WHERE s.date >= ? AND s.date <= ?
+    AND s.status IN ('scheduled', 'covered')
+  `).all(weekStart, weekEnd) as Array<{
+    id: number; date: string; student_name: string; student_id: number;
+  }>;
+
+  for (const a of absentConflicts) {
+    warnings.push({
+      type: "student_absent",
+      severity: "error",
+      message: `${a.student_name} is absent on ${a.date} but has a scheduled shift`,
+      shiftId: a.id,
+      studentId: a.student_id,
+    });
+  }
+
+  // Check staff with dedicated roles assigned to regular shifts
+  const dedicatedConflicts = db.prepare(`
+    SELECT s.id, s.date, stf.name as staff_name, st.name as student_name,
+           dr.role as dedicated_role, dr.label as role_label, s.assigned_staff_id
+    FROM shift s
+    JOIN student st ON s.student_id = st.id
+    JOIN staff stf ON s.assigned_staff_id = stf.id
+    JOIN staff_dedicated_role dr ON dr.staff_id = s.assigned_staff_id
+      AND (dr.day_of_week IS NULL OR dr.day_of_week = CAST(strftime('%w', s.date) AS INTEGER))
+      AND (dr.start_date IS NULL OR dr.start_date <= s.date)
+      AND (dr.end_date IS NULL OR dr.end_date >= s.date)
+    WHERE s.date >= ? AND s.date <= ?
+    AND s.status IN ('scheduled', 'covered')
+    AND s.assigned_staff_id IS NOT NULL
+  `).all(weekStart, weekEnd) as Array<{
+    id: number; date: string; staff_name: string; student_name: string;
+    dedicated_role: string; role_label: string | null; assigned_staff_id: number;
+  }>;
+
+  for (const dc of dedicatedConflicts) {
+    warnings.push({
+      type: "dedicated_role_conflict",
+      severity: "warning",
+      message: `${dc.staff_name} has dedicated role (${dc.role_label || dc.dedicated_role}) but is assigned to ${dc.student_name} on ${dc.date}`,
+      shiftId: dc.id,
+      staffId: dc.assigned_staff_id,
     });
   }
 

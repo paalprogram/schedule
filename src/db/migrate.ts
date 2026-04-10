@@ -103,6 +103,39 @@ db.exec(`
   );
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS student_absence (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id INTEGER NOT NULL REFERENCES student(id),
+    date TEXT NOT NULL,
+    reason TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(student_id, date)
+  );
+
+  CREATE TABLE IF NOT EXISTS staff_dedicated_role (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    staff_id INTEGER NOT NULL REFERENCES staff(id),
+    role TEXT NOT NULL,
+    label TEXT,
+    day_of_week INTEGER,
+    start_date TEXT,
+    end_date TEXT,
+    notes TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS staff_student_preference (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    staff_id INTEGER NOT NULL REFERENCES staff(id),
+    student_id INTEGER NOT NULL REFERENCES student(id),
+    level TEXT NOT NULL DEFAULT 'preferred',
+    reason TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(staff_id, student_id)
+  );
+`);
+
 // Add staffing_ratio column if it doesn't exist
 try {
   db.exec(`ALTER TABLE student ADD COLUMN staffing_ratio INTEGER DEFAULT 1`);

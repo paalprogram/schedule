@@ -10,6 +10,8 @@ import {
   getStaffStudentCountForWeek,
   getStaffSwimCountForWeek,
   getStaffShiftsForWeek,
+  hasStaffDedicatedRole,
+  getStaffStudentPreference,
 } from "./conflicts";
 import { MAX_SAME_STUDENT_PER_WEEK, MAX_SWIM_SHIFTS_PER_WEEK, SCORE_WEIGHTS as W, LOAD_THRESHOLDS } from "./rules";
 
@@ -72,10 +74,17 @@ export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
     let excludeReason: string | undefined;
 
     // Hard filters
+    const dedicatedRole = hasStaffDedicatedRole(s.id, input.date);
+    if (dedicatedRole) {
+      excluded = true;
+      excludeReason = "Has dedicated role";
+      tags.push("dedicated role");
+    }
+
     const onPto = isStaffOnPto(s.id, input.date);
     if (onPto) {
       excluded = true;
-      excludeReason = "On PTO";
+      excludeReason = excludeReason ? excludeReason + " + On PTO" : "On PTO";
       tags.push("PTO conflict");
     }
 
@@ -113,6 +122,14 @@ export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
     const totalShiftsThisWeek = weekShifts.length;
     const overnightEligible = !!s.can_work_overnight;
     const swimEligible = !!s.can_cover_swim;
+    const preferenceLevel = getStaffStudentPreference(s.id, input.studentId) as "preferred" | "neutral" | "avoid" | null;
+
+    // Preference tags/warnings
+    if (preferenceLevel === "preferred") tags.push("preferred");
+    if (preferenceLevel === "avoid") {
+      tags.push("avoid");
+      warnings.push("Marked as avoid for this student");
+    }
 
     // Build tags
     tags.push(trained ? "trained" : "not trained");
@@ -164,6 +181,10 @@ export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
         score += W.SWIM_ELIGIBLE;
       }
 
+      // Preference bonus/penalty
+      if (preferenceLevel === "preferred") score += W.PREFERENCE_PREFERRED;
+      else if (preferenceLevel === "avoid") score += W.PREFERENCE_AVOID;
+
       // Penalties
       if (sameStudentCount >= MAX_SAME_STUDENT_PER_WEEK + 1) score += W.PENALTY_OVER_ASSIGNED;
       if (!trained) score += W.PENALTY_UNTRAINED;
@@ -182,6 +203,8 @@ export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
         totalShiftsThisWeek,
         overnightEligible,
         swimEligible,
+        preferenceLevel,
+        hasDedicatedRole: dedicatedRole,
       },
       tags,
       warnings,

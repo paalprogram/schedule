@@ -86,6 +86,35 @@ export interface ShiftTemplate {
   notes: string | null;
 }
 
+export interface StudentAbsence {
+  id: number;
+  studentId: number;
+  date: string;
+  reason: string | null;
+  createdAt: string;
+}
+
+export interface StaffDedicatedRole {
+  id: number;
+  staffId: number;
+  role: string;
+  label: string | null;
+  dayOfWeek: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  notes: string | null;
+  createdAt: string;
+}
+
+export interface StaffStudentPreference {
+  id: number;
+  staffId: number;
+  studentId: number;
+  level: "preferred" | "neutral" | "avoid";
+  reason: string | null;
+  createdAt: string;
+}
+
 export interface CandidateScore {
   staffId: number;
   staffName: string;
@@ -98,6 +127,8 @@ export interface CandidateScore {
     totalShiftsThisWeek: number;
     overnightEligible: boolean;
     swimEligible: boolean;
+    preferenceLevel: "preferred" | "neutral" | "avoid" | null;
+    hasDedicatedRole: boolean;
   };
   tags: string[];
   warnings: string[];
@@ -122,7 +153,7 @@ export interface WeekSchedule {
 }
 
 export interface ScheduleWarning {
-  type: "over_twice" | "untrained" | "overlap" | "pto_conflict" | "swim_heavy" | "overnight_rest" | "uncovered";
+  type: "over_twice" | "untrained" | "overlap" | "pto_conflict" | "swim_heavy" | "overnight_rest" | "uncovered" | "student_absent" | "dedicated_role_conflict";
   severity: "error" | "warning" | "info";
   message: string;
   shiftId?: number;

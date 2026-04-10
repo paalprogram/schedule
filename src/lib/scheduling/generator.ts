@@ -20,6 +20,13 @@ export function generateWeekFromTemplates(weekStartDate: string) {
     dates.push(d.toISOString().split("T")[0]);
   }
 
+  // Load student absences for the week
+  const absenceRows = db.prepare(`
+    SELECT student_id, date FROM student_absence
+    WHERE date >= ? AND date <= ?
+  `).all(dates[0], dates[dates.length - 1]) as Array<{ student_id: number; date: string }>;
+  const absenceSet = new Set(absenceRows.map(a => `${a.student_id}:${a.date}`));
+
   // Get all templates
   const templates = db.prepare(`SELECT * FROM shift_template`).all() as Array<{
     id: number; student_id: number; day_of_week: number;
@@ -42,6 +49,9 @@ export function generateWeekFromTemplates(weekStartDate: string) {
     // Find the date for this day_of_week in the week
     const targetDate = dates.find(d => new Date(d + "T00:00:00").getDay() === template.day_of_week);
     if (!targetDate) continue;
+
+    // Skip if student is absent on this date
+    if (absenceSet.has(`${template.student_id}:${targetDate}`)) continue;
 
     // Check how many shifts already exist for this slot
     const existingCount = (db.prepare(`

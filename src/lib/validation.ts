@@ -193,6 +193,45 @@ export function validateTrainingCreate(body: Record<string, unknown>) {
   return errors.length > 0 ? err(errors) : null;
 }
 
+function isValidDedicatedRole(value: unknown): value is string {
+  return typeof value === "string" && ["academics", "crisis_support", "other"].includes(value);
+}
+
+function isValidPreferenceLevel(value: unknown): value is string {
+  return typeof value === "string" && ["preferred", "neutral", "avoid"].includes(value);
+}
+
+export function validateStudentAbsenceCreate(body: Record<string, unknown>) {
+  const errors: ValidationError[] = [];
+  if (!isPositiveInt(body.student_id)) errors.push({ field: "student_id", message: "Valid student ID required" });
+  if (!isValidDate(body.date)) errors.push({ field: "date", message: "Valid date required (YYYY-MM-DD)" });
+  return errors.length > 0 ? err(errors) : null;
+}
+
+export function validateDedicatedRoleCreate(body: Record<string, unknown>) {
+  const errors: ValidationError[] = [];
+  if (!isPositiveInt(body.staff_id)) errors.push({ field: "staff_id", message: "Valid staff ID required" });
+  if (!isValidDedicatedRole(body.role)) errors.push({ field: "role", message: "Must be academics, crisis_support, or other" });
+  if (body.day_of_week !== undefined && body.day_of_week !== null && !isDayOfWeek(body.day_of_week)) {
+    errors.push({ field: "day_of_week", message: "Must be 0-6 (Sun-Sat) or null for every day" });
+  }
+  if (body.start_date !== undefined && body.start_date !== null && !isValidDate(body.start_date)) {
+    errors.push({ field: "start_date", message: "Valid date required (YYYY-MM-DD)" });
+  }
+  if (body.end_date !== undefined && body.end_date !== null && !isValidDate(body.end_date)) {
+    errors.push({ field: "end_date", message: "Valid date required (YYYY-MM-DD)" });
+  }
+  return errors.length > 0 ? err(errors) : null;
+}
+
+export function validatePreferenceCreate(body: Record<string, unknown>) {
+  const errors: ValidationError[] = [];
+  if (!isPositiveInt(body.staff_id)) errors.push({ field: "staff_id", message: "Valid staff ID required" });
+  if (!isPositiveInt(body.student_id)) errors.push({ field: "student_id", message: "Valid student ID required" });
+  if (!isValidPreferenceLevel(body.level)) errors.push({ field: "level", message: "Must be preferred, neutral, or avoid" });
+  return errors.length > 0 ? err(errors) : null;
+}
+
 export function validateDateRange(weekStart: string | null, weekEnd: string | null) {
   const errors: ValidationError[] = [];
   if (!weekStart || !isValidDate(weekStart)) errors.push({ field: "weekStart", message: "Valid date required (YYYY-MM-DD)" });

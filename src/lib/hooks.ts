@@ -46,6 +46,25 @@ export function useCallouts(weekStart?: string, weekEnd?: string, resolved?: boo
   return useSWR(`/api/callouts?${params.toString()}`, fetcher, retryOpts);
 }
 
+export function useAbsences(weekStart?: string, weekEnd?: string) {
+  const params = new URLSearchParams();
+  if (weekStart) params.set("weekStart", weekStart);
+  if (weekEnd) params.set("weekEnd", weekEnd);
+  return useSWR(`/api/absences?${params.toString()}`, fetcher, retryOpts);
+}
+
+export function useDedicatedRoles() {
+  return useSWR("/api/dedicated-roles", fetcher, retryOpts);
+}
+
+export function usePreferences(studentId?: number) {
+  return useSWR(
+    studentId ? `/api/preferences?student_id=${studentId}` : "/api/preferences",
+    fetcher,
+    retryOpts,
+  );
+}
+
 export function useReports(weekStart: string, weekEnd: string) {
   return useSWR(
     weekStart && weekEnd ? `/api/reports?weekStart=${weekStart}&weekEnd=${weekEnd}` : null,

@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { formatTime } from "@/lib/utils";
-import { AlertTriangle, Droplets, Moon, PhoneOff } from "lucide-react";
+import { AlertTriangle, Droplets, Moon, PhoneOff, UserX } from "lucide-react";
 
 interface ShiftCardProps {
   shift: Record<string, unknown>;
@@ -20,6 +20,7 @@ export function ShiftCard({ shift, warnings, onClick, onCallout, onDragStart, on
   const isOpen = !shift.assigned_staff_id || shift.status === "open" || shift.status === "called_out";
   const isSwim = shift.needs_swim_support || shift.activity_type === "swimming";
   const isOvernight = shift.shift_type === "overnight";
+  const isAbsent = !!shift.studentAbsent;
 
   async function handleCallout(e: React.MouseEvent) {
     e.stopPropagation();
@@ -50,7 +51,9 @@ export function ShiftCard({ shift, warnings, onClick, onCallout, onDragStart, on
       onDragEnd={() => onDragEnd?.()}
       onClick={onClick}
       className={`rounded-lg p-2 text-xs cursor-grab active:cursor-grabbing border transition-colors ${
-        isOpen
+        isAbsent
+          ? "bg-gray-100 border-gray-300 opacity-60"
+          : isOpen
           ? "bg-red-50 border-red-200 hover:border-red-300"
           : warnings.length > 0
           ? "bg-yellow-50 border-yellow-200 hover:border-yellow-300"
@@ -58,12 +61,18 @@ export function ShiftCard({ shift, warnings, onClick, onCallout, onDragStart, on
       }`}
     >
       <div className="flex items-center justify-between mb-1">
-        <span className="font-semibold text-gray-900 truncate">{shift.student_name as string}</span>
+        <span className={`font-semibold truncate ${isAbsent ? "text-gray-500 line-through" : "text-gray-900"}`}>
+          {shift.student_name as string}
+        </span>
         <div className="flex gap-0.5">
+          {isAbsent && <UserX size={12} className="text-gray-500" />}
           {isSwim && <Droplets size={12} className="text-blue-500" />}
           {isOvernight && <Moon size={12} className="text-indigo-500" />}
         </div>
       </div>
+      {isAbsent && (
+        <Badge variant="default">OUT</Badge>
+      )}
       <div className="text-gray-500 mb-1">
         {formatTime(shift.start_time as string)} - {formatTime(shift.end_time as string)}
       </div>
