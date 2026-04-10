@@ -1,0 +1,23 @@
+app = "scheduleapp"
+primary_region = "ewr"
+
+[env]
+  DB_PATH = "/data/schedule.db"
+  NODE_ENV = "production"
+
+[build]
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[mounts]
+  source = "scheduleapp_data"
+  destination = "/data"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

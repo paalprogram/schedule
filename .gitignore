@@ -42,6 +42,15 @@ yarn-error.log*
 /data/*.db-shm
 /data/backups/
 
+# build output
+/dist/
+
+# cloudflare (if any leftover)
+.open-next/
+.wrangler/
+.dev.vars
+wrangler.jsonc
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
