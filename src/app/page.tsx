@@ -34,19 +34,19 @@ export default function DashboardPage() {
       )}
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
         <Link href="/schedule" className="bg-white rounded-lg shadow-sm border p-4 hover:border-blue-300 transition-colors">
           <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
             <Calendar size={16} /> Total Shifts
           </div>
-          <div className="text-3xl font-bold text-gray-900">{totalShifts}</div>
+          <div className="text-2xl sm:text-2xl sm:text-3xl font-bold text-gray-900">{totalShifts}</div>
         </Link>
 
         <Link href="/schedule" className="bg-white rounded-lg shadow-sm border p-4 hover:border-blue-300 transition-colors">
           <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
             <AlertTriangle size={16} className="text-red-500" /> Uncovered
           </div>
-          <div className={`text-3xl font-bold ${uncoveredCount > 0 ? "text-red-600" : "text-green-600"}`}>
+          <div className={`text-2xl sm:text-3xl font-bold ${uncoveredCount > 0 ? "text-red-600" : "text-green-600"}`}>
             {uncoveredCount}
           </div>
         </Link>
@@ -55,7 +55,7 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
             <PhoneOff size={16} className="text-orange-500" /> Active Callouts
           </div>
-          <div className={`text-3xl font-bold ${unresolvedCallouts.length > 0 ? "text-orange-600" : "text-green-600"}`}>
+          <div className={`text-2xl sm:text-3xl font-bold ${unresolvedCallouts.length > 0 ? "text-orange-600" : "text-green-600"}`}>
             {unresolvedCallouts.length}
           </div>
         </Link>
@@ -64,13 +64,13 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
             <AlertTriangle size={16} className="text-yellow-500" /> Warnings
           </div>
-          <div className={`text-3xl font-bold ${warnings.length > 0 ? "text-yellow-600" : "text-green-600"}`}>
+          <div className={`text-2xl sm:text-3xl font-bold ${warnings.length > 0 ? "text-yellow-600" : "text-green-600"}`}>
             {warnings.length}
           </div>
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Active callouts */}
         <div className="bg-white rounded-lg shadow-sm border">
           <div className="px-4 py-3 border-b bg-gray-50 flex items-center justify-between">
@@ -136,7 +136,7 @@ export default function DashboardPage() {
               <Users size={16} /> Quick Stats
             </h2>
           </div>
-          <div className="p-4 grid grid-cols-2 gap-6">
+          <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
             <div>
               <h3 className="text-sm font-medium text-gray-700 mb-2">Staff Workload (Top 5)</h3>
               {(report?.staffLoadCounts as Array<{ staff_name: string; total_shifts: number }>)?.slice(0, 5).map((s, i: number) => (

@@ -69,15 +69,15 @@ export default function StudentsPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border">
+      {/* Desktop table */}
+      <div className="hidden md:block bg-white rounded-lg shadow-sm border">
         <table className="w-full">
           <thead>
             <tr className="border-b bg-gray-50">
               <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Name</th>
-              <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Swim Support</th>
+              <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Swim</th>
               <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Ratio</th>
               <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Trained Staff</th>
-              <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Notes</th>
               <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Status</th>
               <th className="px-4 py-3"></th>
             </tr>
@@ -87,44 +87,40 @@ export default function StudentsPage() {
               <tr key={s.id as number} className="border-b last:border-0 hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium text-gray-900">{s.name as string}</td>
                 <td className="px-4 py-3">
-                  {s.requires_swim_support ? (
-                    <Badge variant="info"><Droplets size={12} className="mr-1" />Yes</Badge>
-                  ) : (
-                    <span className="text-sm text-gray-400">No</span>
-                  )}
+                  {s.requires_swim_support ? <Badge variant="info"><Droplets size={12} className="mr-1" />Yes</Badge> : <span className="text-sm text-gray-400">No</span>}
                 </td>
                 <td className="px-4 py-3">
-                  {(s.staffing_ratio as number) > 1 ? (
-                    <Badge variant="warning">{s.staffing_ratio as number}:1</Badge>
-                  ) : (
-                    <span className="text-sm text-gray-400">1:1</span>
-                  )}
+                  {(s.staffing_ratio as number) > 1 ? <Badge variant="warning">{s.staffing_ratio as number}:1</Badge> : <span className="text-sm text-gray-400">1:1</span>}
                 </td>
                 <td className="px-4 py-3 text-sm text-gray-600">
-                  {(s.trained_staff_ids as string)
-                    ? (s.trained_staff_ids as string).split(",").length + " staff"
-                    : "0 staff"}
+                  {(s.trained_staff_ids as string) ? (s.trained_staff_ids as string).split(",").length + " staff" : "0 staff"}
                 </td>
-                <td className="px-4 py-3 text-sm text-gray-500 max-w-[200px] truncate">{(s.notes as string) || "—"}</td>
-                <td className="px-4 py-3">
-                  <Badge variant={s.active ? "success" : "default"}>
-                    {s.active ? "Active" : "Inactive"}
-                  </Badge>
-                </td>
-                <td className="px-4 py-3">
-                  <Link href={`/students/${s.id}`} className="text-blue-600 hover:text-blue-800">
-                    <Edit2 size={16} />
-                  </Link>
-                </td>
+                <td className="px-4 py-3"><Badge variant={s.active ? "success" : "default"}>{s.active ? "Active" : "Inactive"}</Badge></td>
+                <td className="px-4 py-3"><Link href={`/students/${s.id}`} className="text-blue-600 hover:text-blue-800"><Edit2 size={16} /></Link></td>
               </tr>
             ))}
           </tbody>
         </table>
-        {filtered.length === 0 && (
-          <div className="text-center py-8 text-gray-500">
-            {!students || students.length === 0 ? "No students yet." : "No students match your search."}
-          </div>
-        )}
+        {filtered.length === 0 && <div className="text-center py-8 text-gray-500">{!students || students.length === 0 ? "No students yet." : "No students match your search."}</div>}
+      </div>
+
+      {/* Mobile cards */}
+      <div className="md:hidden space-y-2">
+        {filtered.map((s: Record<string, unknown>) => (
+          <Link key={s.id as number} href={`/students/${s.id}`} className="block bg-white rounded-lg shadow-sm border p-3 active:bg-gray-50">
+            <div className="flex items-center justify-between mb-1">
+              <span className="font-medium text-gray-900">{s.name as string}</span>
+              <Badge variant={s.active ? "success" : "default"}>{s.active ? "Active" : "Inactive"}</Badge>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-gray-500 flex-wrap">
+              {s.requires_swim_support ? <Badge variant="info" className="text-[10px]">Swim</Badge> : null}
+              {(s.staffing_ratio as number) > 1 && <Badge variant="warning" className="text-[10px]">{s.staffing_ratio as number}:1</Badge>}
+              <span>{(s.trained_staff_ids as string) ? (s.trained_staff_ids as string).split(",").length : 0} trained staff</span>
+              {(s.notes as string) && <span className="truncate max-w-[150px]">{s.notes as string}</span>}
+            </div>
+          </Link>
+        ))}
+        {filtered.length === 0 && <div className="text-center py-8 text-gray-500">{!students || students.length === 0 ? "No students yet." : "No students match your search."}</div>}
       </div>
 
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add Student" wide>
@@ -133,7 +129,7 @@ export default function StudentsPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
             <input name="name" required className="w-full border rounded-lg px-3 py-2 text-sm" />
           </div>
-          <div className="flex gap-6">
+          <div className="flex flex-wrap gap-x-6 gap-y-2">
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" name="requires_swim_support" className="rounded" />
               Requires Swim Support

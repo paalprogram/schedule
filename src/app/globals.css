@@ -30,5 +30,9 @@ body {
 @media print {
   nav { display: none !important; }
   .print\:hidden { display: none !important; }
-  main { padding: 0 !important; max-width: 100% !important; }
+  main { padding: 0.25rem !important; max-width: 100% !important; }
+  body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  * { box-shadow: none !important; }
+  .rounded-lg, .rounded-md { border-radius: 2px !important; }
+  h1 { font-size: 14pt !important; }
 }

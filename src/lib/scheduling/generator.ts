@@ -1,12 +1,10 @@
 import Database from "better-sqlite3";
 import path from "path";
 import { scoreCandidates } from "./scorer";
+import { getDb as _getDb, getDbPath } from "@/lib/db-utils";
 
 function getDb() {
-  const dbPath = path.join(process.cwd(), "data", "schedule.db");
-  const db = new Database(dbPath);
-  db.pragma("foreign_keys = ON");
-  return db;
+  return _getDb(false);
 }
 
 export function generateWeekFromTemplates(weekStartDate: string) {
@@ -115,7 +113,7 @@ export function autoAssignOpenShifts(weekStart: string, weekEnd: string) {
 
     const best = candidates.find(c => !c.excluded && c.totalScore >= 30);
     if (best) {
-      const writeDb = new Database(path.join(process.cwd(), "data", "schedule.db"));
+      const writeDb = new Database(getDbPath());
       writeDb.prepare(`
         UPDATE shift SET assigned_staff_id = ?, status = 'scheduled', updated_at = datetime('now')
         WHERE id = ?

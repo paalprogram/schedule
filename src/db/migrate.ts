@@ -1,13 +1,21 @@
 import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
+import { getDbPath } from "../lib/db-utils";
 
+// Ensure data dir exists for backups
 const dataDir = path.join(process.cwd(), "data");
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
-const dbPath = path.join(dataDir, "schedule.db");
+const dbPath = getDbPath();
+// Ensure the directory for the DB exists
+const dbDir = path.dirname(dbPath);
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
+}
+
 const db = new Database(dbPath);
 
 db.pragma("journal_mode = WAL");

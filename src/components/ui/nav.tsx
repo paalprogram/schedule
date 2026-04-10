@@ -1,8 +1,9 @@
 "use client";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Calendar, Users, GraduationCap, AlertTriangle, BarChart3, LayoutDashboard } from "lucide-react";
+import { Calendar, Users, GraduationCap, AlertTriangle, BarChart3, LayoutDashboard, Menu, X } from "lucide-react";
 
 const links = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -15,15 +16,18 @@ const links = [
 
 export function Nav() {
   const pathname = usePathname();
+  const [open, setOpen] = useState(false);
 
   return (
-    <nav className="bg-white border-b border-gray-200 shadow-sm">
-      <div className="max-w-[1400px] mx-auto px-6">
-        <div className="flex items-center h-14 gap-8">
-          <Link href="/" className="font-bold text-lg text-blue-700 shrink-0">
+    <nav className="bg-white border-b border-gray-200 print:hidden">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6">
+        <div className="flex items-center justify-between h-12">
+          <Link href="/" className="font-bold text-base text-blue-700 shrink-0 tracking-tight">
             Staff Scheduler
           </Link>
-          <div className="flex gap-1">
+
+          {/* Desktop nav */}
+          <div className="hidden md:flex gap-0.5">
             {links.map(({ href, label, icon: Icon }) => {
               const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
               return (
@@ -31,20 +35,48 @@ export function Nav() {
                   key={href}
                   href={href}
                   className={cn(
-                    "flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                    "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm font-medium transition-colors",
                     active
                       ? "bg-blue-50 text-blue-700"
-                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                      : "text-gray-500 hover:text-gray-800 hover:bg-gray-50"
                   )}
                 >
-                  <Icon size={16} />
+                  <Icon size={15} />
                   {label}
                 </Link>
               );
             })}
           </div>
+
+          {/* Mobile menu button */}
+          <button onClick={() => setOpen(o => !o)} className="md:hidden p-2 -mr-2 text-gray-500">
+            {open ? <X size={22} /> : <Menu size={22} />}
+          </button>
         </div>
       </div>
+
+      {/* Mobile menu dropdown */}
+      {open && (
+        <div className="md:hidden border-t bg-white px-4 pb-3 pt-1">
+          {links.map(({ href, label, icon: Icon }) => {
+            const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+            return (
+              <Link
+                key={href}
+                href={href}
+                onClick={() => setOpen(false)}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium",
+                  active ? "bg-blue-50 text-blue-700" : "text-gray-600"
+                )}
+              >
+                <Icon size={18} />
+                {label}
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </nav>
   );
 }

@@ -1,212 +1,552 @@
 import Database from "better-sqlite3";
 import path from "path";
+import fs from "fs";
+import { createBackup } from "./backup";
+import { getDbPath } from "../lib/db-utils";
 
-const dbPath = path.join(process.cwd(), "data", "schedule.db");
+const dbPath = getDbPath();
+
+// ── Safety check: require --confirm to prevent accidental data loss ──
+if (!process.argv.includes("--confirm")) {
+  if (fs.existsSync(dbPath)) {
+    const stat = fs.statSync(dbPath);
+    console.error("\n  WARNING: This will DELETE ALL DATA in schedule.db");
+    console.error(`  Database: ${dbPath} (${(stat.size / 1024).toFixed(1)} KB)`);
+    console.error("\n  To proceed, run:  npm run db:seed -- --confirm");
+    console.error("  To back up first: npm run db:backup\n");
+    process.exit(1);
+  }
+}
+
+// ── Auto-backup before wiping ──
+const backupResult = createBackup("pre-seed");
+if (backupResult) {
+  console.log(`Auto-backup created: ${path.basename(backupResult)}`);
+}
+
 const db = new Database(dbPath);
 db.pragma("foreign_keys = ON");
 
-// Clear existing data
+console.log(`Database: ${dbPath}`);
+
+// Clear all data in dependency order
 db.exec(`
+  DELETE FROM meeting_attendee;
+  DELETE FROM meeting;
   DELETE FROM callout;
   DELETE FROM shift;
   DELETE FROM shift_template;
+  DELETE FROM staff_onboarding;
+  DELETE FROM staff_student_preference;
+  DELETE FROM staff_dedicated_role;
   DELETE FROM staff_student_training;
   DELETE FROM staff_availability;
   DELETE FROM staff_pto;
+  DELETE FROM student_absence;
+  DELETE FROM student_group_member;
   DELETE FROM student;
+  DELETE FROM student_group;
   DELETE FROM staff;
 `);
 
-// ── Staff (10 members) ──
+// ═══════════════════════════════════════════════════════════════
+// STAFF — from the TEAMS sheet column headers (exact CSV data)
+// ═══════════════════════════════════════════════════════════════
+
 const insertStaff = db.prepare(`
-  INSERT INTO staff (name, role, can_work_overnight, can_cover_swim, max_hours_per_week, notes)
-  VALUES (?, ?, ?, ?, ?, ?)
+  INSERT INTO staff (name, role, can_work_overnight, can_cover_swim, notes)
+  VALUES (?, ?, ?, ?, ?)
 `);
 
-const staffData = [
-  ["Maria Johnson", "lead", 0, 1, 40, "Lead staff, swim certified"],
-  ["James Carter", "direct_care", 1, 0, 40, "Overnight specialist"],
-  ["Aisha Patel", "direct_care", 0, 1, 35, "Great with younger students, swim certified"],
-  ["David Kim", "direct_care", 1, 1, 40, "Flexible schedule, swim and overnight"],
-  ["Sarah Williams", "direct_care", 0, 0, 30, "Part-time, afternoons preferred"],
-  ["Marcus Brown", "lead", 0, 1, 40, "Senior lead, swim certified"],
-  ["Emily Chen", "direct_care", 0, 0, 40, null],
-  ["Robert Taylor", "direct_care", 1, 0, 40, "Overnight preferred"],
-  ["Jessica Martinez", "direct_care", 0, 1, 35, "Swim certified"],
-  ["Anthony Davis", "supervisor", 0, 0, 40, "Supervisor - can fill in when needed"],
+const directCareStaff: [string, number, number, string | null][] = [
+  ["Abbigail",    0, 0, null],
+  ["Alexis",      0, 0, null],
+  ["Alisha",      0, 0, null],
+  ["Alliah",      0, 1, "Swim certified"],
+  ["Azim",        0, 0, null],
+  ["Channing",    0, 0, null],
+  ["Clare",       0, 0, null],
+  ["Cori",        0, 0, null],
+  ["Damola",      0, 0, null],
+  ["Clarke",      0, 0, null],
+  ["Courtney",    0, 0, null],
+  ["Daniel",      0, 0, null],
+  ["Demia",       0, 0, null],
+  ["Dom",         0, 0, null],
+  ["Elsie",       0, 0, null],
+  ["Greg",        0, 0, null],
+  ["Jerica",      0, 0, null],
+  ["Jessica",     0, 0, null],
+  ["Jimmy",       0, 0, null],
+  ["Jon",         0, 0, null],
+  ["Justice",     0, 0, null],
+  ["Jutee",       0, 0, null],
+  ["Ka.",         0, 0, null],
+  ["Kaia",        0, 0, null],
+  ["Kelly",       0, 0, null],
+  ["Kevin B",     0, 1, "Swim certified"],
+  ["Kirsten",     0, 0, null],
+  ["Kristiann",   0, 0, null],
+  ["Kyle",        0, 0, null],
+  ["Kyra",        0, 0, null],
+  ["Lauren",      0, 0, null],
+  ["Layla",       0, 0, null],
+  ["Mar",         0, 0, null],
+  ["Matt",        0, 0, null],
+  ["Millie",      0, 0, null],
+  ["Parker",      0, 0, null],
+  ["Shanice",     0, 0, null],
+  ["Shawna",      0, 0, null],
+  ["Taylor",      0, 0, "Academics lead"],
+  ["Tella",       0, 0, null],
+  ["Tom",         0, 1, "Swim certified"],
+  ["Will",        0, 0, null],
+  ["Wren",        0, 0, null],
+  ["Zakiyah",     0, 0, null],
 ];
 
-for (const s of staffData) {
-  insertStaff.run(...s);
+for (const [name, overnight, swim, notes] of directCareStaff) {
+  insertStaff.run(name, "direct_care", overnight, swim, notes);
 }
 
-// ── Students (6) ──
+const supervisorStaff: [string, string, string | null][] = [
+  ["Ben",       "lead",       "Crisis Support"],
+  ["Jason K",   "supervisor", null],
+  ["JNFR",      "lead",       null],
+  ["Jason E",   "supervisor", null],
+  ["Jennifer",  "lead",       null],
+  ["Allen",     "supervisor", null],
+  ["Katie",     "supervisor", null],
+  ["Laura",     "lead",       null],
+  ["Carole",    "supervisor", null],
+  ["Ally",      "lead",       null],
+  ["Kaitlin",   "lead",       "Swim lead"],
+  ["McKeen",    "supervisor", null],
+];
+
+for (const [name, role, notes] of supervisorStaff) {
+  insertStaff.run(name, role, 0, 0, notes);
+}
+
+// Build staff name→id lookup
+const staffRows = db.prepare("SELECT id, name FROM staff").all() as Array<{ id: number; name: string }>;
+const sid: Record<string, number> = {};
+for (const r of staffRows) sid[r.name] = r.id;
+
+// ═══════════════════════════════════════════════════════════════
+// STUDENTS
+// ═══════════════════════════════════════════════════════════════
+
 const insertStudent = db.prepare(`
-  INSERT INTO student (name, requires_swim_support, notes)
-  VALUES (?, ?, ?)
+  INSERT INTO student (name, requires_swim_support, staffing_ratio, notes)
+  VALUES (?, ?, ?, ?)
 `);
 
-const studentData = [
-  ["Ethan R.", 1, "Needs swim support on Wednesdays"],
-  ["Olivia M.", 0, "Prefers consistent staffing"],
-  ["Liam S.", 1, "Swim Tuesdays and Thursdays"],
-  ["Sophia T.", 0, null],
-  ["Noah W.", 0, "Responds well to familiar staff"],
-  ["Ava P.", 1, "Swim on Fridays, needs 1:1 in water"],
+const studentData: [string, number, number, string | null][] = [
+  ["Nick",      0, 1, "Massage on Tuesdays"],
+  ["Liz",       0, 1, null],
+  ["AJ",        0, 1, null],
+  ["Nicole",    0, 1, null],
+  ["Chris W",   0, 1, null],
+  ["Rose C",    0, 1, null],
+  ["Will",      0, 1, null],
+  ["Jonah",     0, 1, null],
+  ["Matthew",   0, 1, null],
+  ["Kelly B.",  0, 1, null],
+  ["Andrew",    1, 1, "SWIM on Thursdays"],
+  ["Kiki",      0, 1, null],
+  ["Nya",       0, 1, null],
+  ["Adam",      0, 1, null],
+  ["Josh G",    1, 1, "SWIM on Wednesdays"],
+  ["Trevor",    0, 1, null],
+  ["Gavin",     0, 1, "See Kaitlin/Swim some days"],
+  ["Chris M",   0, 1, null],
+  ["Declan",    0, 1, null],
+  ["Leo",       0, 1, null],
+  ["Josh C",    0, 1, "Frequently OUT"],
+  ["Bobby",     0, 1, null],
+  ["Robert",    0, 1, null],
+  ["Angela",    0, 1, null],
+  ["Kyler",     0, 1, null],
+  ["Tristan",   0, 1, null],
+  ["Chris F",   0, 1, null],
+  ["Kieran",    0, 2, null],
+  ["Ben",       0, 2, null],
+  ["Rose W",    0, 1, null],
+  ["David",     0, 2, "Shares staff with Jack"],
+  ["Jack",      0, 2, "Shares staff with David"],
+  ["Pack",      0, 1, null],
 ];
 
-for (const s of studentData) {
-  insertStudent.run(...s);
+for (const [name, swim, ratio, notes] of studentData) {
+  insertStudent.run(name, swim, ratio, notes);
 }
 
-// ── Training assignments ──
-// Each student has 4-6 trained staff; not all staff trained on all students
+// Build student name→id lookup
+const studentRows = db.prepare("SELECT id, name FROM student").all() as Array<{ id: number; name: string }>;
+const stid: Record<string, number> = {};
+for (const r of studentRows) stid[r.name] = r.id;
+
+// ═══════════════════════════════════════════════════════════════
+// STUDENT GROUP — Joey, Zach, Jae & Jamie
+// ═══════════════════════════════════════════════════════════════
+
+const groupStudents = ["Joey", "Zach", "Jae", "Jamie"];
+for (const name of groupStudents) {
+  insertStudent.run(name, 0, 1, "Part of group: Joey, Zach, Jae & Jamie");
+}
+const allStudents = db.prepare("SELECT id, name FROM student").all() as Array<{ id: number; name: string }>;
+for (const r of allStudents) stid[r.name] = r.id;
+
+const insertGroup = db.prepare("INSERT INTO student_group (name, staffing_ratio, notes) VALUES (?, ?, ?)");
+const groupResult = insertGroup.run("Joey, Zach, Jae & Jamie", 2, "Group scheduled together — always 2 staff");
+const groupId = groupResult.lastInsertRowid;
+
+const insertGroupMember = db.prepare("INSERT INTO student_group_member (group_id, student_id) VALUES (?, ?)");
+const updateStudentGroup = db.prepare("UPDATE student SET group_id = ? WHERE id = ?");
+for (const name of groupStudents) {
+  insertGroupMember.run(groupId, stid[name]);
+  updateStudentGroup.run(groupId, stid[name]);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TRAINING — parsed directly from the Google Sheets CSV export
+// Each key = staff column header, value = students listed below
+// Parsed exactly from the CSV, column by column
+// ═══════════════════════════════════════════════════════════════
+
 const insertTraining = db.prepare(`
-  INSERT INTO staff_student_training (staff_id, student_id, approved, certified_date)
+  INSERT OR IGNORE INTO staff_student_training (staff_id, student_id, approved, certified_date)
   VALUES (?, ?, 1, '2026-01-15')
 `);
 
-const trainingMap: Record<number, number[]> = {
-  1: [1, 2, 3, 4, 6, 9],       // Ethan: Maria, James, Aisha, David, Marcus, Jessica
-  2: [1, 3, 5, 7, 10],          // Olivia: Maria, Aisha, Sarah, Emily, Anthony
-  3: [2, 4, 6, 8, 9],           // Liam: James, David, Marcus, Robert, Jessica
-  4: [1, 3, 5, 7, 8, 10],       // Sophia: Maria, Aisha, Sarah, Emily, Robert, Anthony
-  5: [2, 4, 6, 7, 9],           // Noah: James, David, Marcus, Emily, Jessica
-  6: [1, 3, 4, 6, 9, 10],       // Ava: Maria, Aisha, David, Marcus, Jessica, Anthony
+// Normalize student names from the CSV to match our DB names
+function norm(name: string): string {
+  const n = name.trim();
+  // Map CSV names to our DB student names
+  if (n === "Kelly") return "Kelly B.";
+  if (n === "Tristian") return "Tristan";
+  if (n === "Keiran") return "Kieran";
+  if (n === "Aj") return "AJ";
+  if (n === "PACK") return "Pack";
+  if (n === "Rose W") return "Rose W";
+  if (n === "Rose C") return "Rose C";
+  return n;
+}
+
+// ── Table 1: columns parsed from CSV rows 3-10 ──
+const trainingMap: Record<string, string[]> = {
+  // Column A: Abbigail
+  "Abbigail": ["Gavin", "Chris F", "Trevor", "Kiki", "Josh C", "Kelly", "Chris F"],
+
+  // Column B: Alisha
+  "Alisha": ["Angela", "Nicole", "Bobby", "Kiki", "Josh C", "Kelly", "Liz", "Chris F"],
+
+  // Column C: Alliah
+  "Alliah": ["Leo", "Adam", "Kelly", "Andrew", "Jonah", "Liz", "Declan"],
+
+  // Column D: Azim
+  "Azim": ["Nick", "Chris W", "Adam", "Will", "Trevor", "Declan", "Nicole"],
+
+  // Column E: Channing
+  "Channing": ["Rose C", "Josh C", "Kiki", "Nya", "PACK", "Nicole", "Liz"],
+
+  // Column F: Clare
+  "Clare": ["Angela", "Kelly", "Trevor", "PACK", "Liz", "Nicole"],
+
+  // Column G: Cori — no entries
+  "Cori": [],
+
+  // Column H: Damola — no entries
+  "Damola": [],
+
+  // Column I: Clarke
+  "Clarke": ["Josh G", "Leo", "Andrew", "Tristian", "Gavin", "Chris F", "Nick", "Aj"],
+
+  // Column J: Daniel
+  "Daniel": ["Adam", "Gavin", "Matthew", "Keiran"],
+
+  // Column K: Demia
+  "Demia": ["Pack", "Kiki", "Kyler", "Nicole", "Liz"],
+
+  // Column L: Dom
+  "Dom": ["Nya", "Kiki", "Kyler", "Bobby", "Liz", "Nicole"],
+
+  // Column M: Elsie
+  "Elsie": ["Adam", "Will", "Kyler", "Chris M"],
+
+  // Column N: Greg
+  "Greg": ["Matthew", "Will", "Kelly", "Liz", "Jonah"],
+
+  // Column O: Jerica (header blue = Nicole)
+  "Jerica": ["Nicole", "Rose C", "Chris F", "Liz", "Kyler", "Angela"],
+
+  // Column P: Jessica
+  "Jessica": ["Bobby", "Robert", "Tristian", "Ben", "Declan", "Angela"],
+
+  // Column Q: Jon
+  "Jon": ["Leo", "Nick", "Josh G", "Tristian", "Chris M"],
+
+  // Column R: Justice
+  "Justice": ["Tristian", "Chris M", "Pack", "Josh G"],
+
+  // Column S: Jutee
+  "Jutee": ["Chris W", "Nya", "Rose W", "Pack", "Nicole", "Liz"],
+
+  // Column T: Ka
+  "Ka.": ["Adam", "Angela", "Kieran", "Rose W", "Kyler", "Chris W", "Liz", "Nicole", "Will"],
+
+  // Column U: Kelly
+  "Kelly": ["Kelly", "Jonah", "Tristian", "Rose C", "Ben", "Trevor", "Nicole", "Liz", "Nicole"],
+
+  // Column V: Kevin B
+  "Kevin B": ["Josh G", "Ben", "Tristian", "Chris M", "Kieran", "AJ"],
+
+  // ── Table 2: columns parsed from CSV rows 13-19 ──
+
+  // Kirsten
+  "Kirsten": ["Rose C", "Jack", "David", "Matthew", "Trevor"],
+
+  // Kristiann
+  "Kristiann": ["Josh C", "Angela", "Bobby", "Nicole", "Liz"],
+
+  // Kyra
+  "Kyra": ["Kelly", "Nicole", "Matthew", "Declan"],
+
+  // Layla
+  "Layla": ["Bobby", "Robert", "Gavin", "Kyler"],
+
+  // Lauren
+  "Lauren": ["Angela", "Jack", "David", "Matthew", "Kieran", "Will"],
+
+  // Mar
+  "Mar": ["Gavin", "AJ", "Rose C", "Pack", "Kieran", "Matthew", "Will", "Nick", "Aj"],
+
+  // Matt
+  "Matt": ["Kieran", "Tristan", "Jack", "David", "Gavin", "Matthew", "Nick"],
+
+  // Millie
+  "Millie": ["Robert", "AJ", "Kieran", "Declan", "Nick"],
+
+  // Parker
+  "Parker": ["Ben", "Leo", "Kieran", "Andrew", "Josh G", "Nick", "Aj"],
+
+  // Shanice
+  "Shanice": ["Nya", "Rose C", "Will", "Jonah", "Nick"],
+
+  // Shawna
+  "Shawna": ["Robert", "Bobby", "Jonah", "Chris F", "Josh C", "Nick"],
+
+  // Tella
+  "Tella": ["Angela", "Jonah", "Chris F", "Trevor", "Chris M", "AJ", "Nick"],
+
+  // Tom
+  "Tom": ["Andrew", "Leo", "Josh G", "Chris M", "Chris F", "AJ", "Nick", "Josh C"],
+
+  // Wren
+  "Wren": ["Adam", "Kyler", "Robert", "Chris F", "Nick"],
+
+  // Will (staff)
+  "Will": ["Tristian", "Ben", "Andrew", "Kyler", "Nick"],
+
+  // Zakiyah
+  "Zakiyah": ["Chris F", "Will", "Kyler", "Kieran", "Nick"],
+
+  // Alexis
+  "Alexis": ["Robert", "Kyler", "Kieran"],
+
+  // Courtney
+  "Courtney": ["Pack", "Trevor", "Jack", "David", "Rose C", "Tristan", "Chris W"],
+
+  // Jennifer
+  "Jennifer": ["Rose W", "Jack", "David", "Rose C", "Chris W"],
+
+  // Jimmy
+  "Jimmy": ["AJ", "Chris F", "Tristan", "Declan"],
+
+  // Kyle
+  "Kyle": ["Aj", "Ben", "Declan", "Matthew", "Andrew", "Nick"],
+
+  // McKeen
+  "McKeen": ["AJ", "Chris W", "Matthew", "Nick"],
 };
 
-for (const [studentId, staffIds] of Object.entries(trainingMap)) {
-  for (const staffId of staffIds) {
-    insertTraining.run(staffId, parseInt(studentId));
+let trainingCount = 0;
+let trainingWarnings = 0;
+for (const [staffName, students] of Object.entries(trainingMap)) {
+  const sId = sid[staffName];
+  if (!sId) { console.warn(`  WARN: Staff "${staffName}" not found`); trainingWarnings++; continue; }
+
+  // Deduplicate student list
+  const seen = new Set<string>();
+  for (const rawName of students) {
+    const studentName = norm(rawName);
+    if (seen.has(studentName)) continue;
+    seen.add(studentName);
+
+    // Handle "Jack / David" → train on both
+    if (studentName === "Jack / David") {
+      for (const name of ["Jack", "David"]) {
+        if (stid[name]) { insertTraining.run(sId, stid[name]); trainingCount++; }
+      }
+      continue;
+    }
+
+    const stuId = stid[studentName];
+    if (!stuId) { console.warn(`  WARN: Student "${rawName}" → "${studentName}" not found for staff "${staffName}"`); trainingWarnings++; continue; }
+    insertTraining.run(sId, stuId);
+    trainingCount++;
   }
 }
 
-// ── Staff availability (Mon-Fri for most, some with restricted hours) ──
-const insertAvail = db.prepare(`
-  INSERT INTO staff_availability (staff_id, day_of_week, start_time, end_time)
-  VALUES (?, ?, ?, ?)
-`);
+// ═══════════════════════════════════════════════════════════════
+// STAFF AVAILABILITY — Mon-Fri 7:00-15:00 for all active staff
+// ═══════════════════════════════════════════════════════════════
 
-// Most staff: Mon-Fri 7:00-15:00
-for (const staffId of [1, 2, 3, 4, 6, 7, 8, 9, 10]) {
+const insertAvail = db.prepare(
+  "INSERT INTO staff_availability (staff_id, day_of_week, start_time, end_time) VALUES (?, ?, ?, ?)"
+);
+const activeStaff = db.prepare("SELECT id FROM staff WHERE active = 1").all() as Array<{ id: number }>;
+for (const s of activeStaff) {
   for (let day = 1; day <= 5; day++) {
-    insertAvail.run(staffId, day, "07:00", "15:00");
+    insertAvail.run(s.id, day, "07:00", "15:00");
   }
 }
 
-// Sarah (5): Mon-Fri 11:00-17:00 (part-time afternoons)
-for (let day = 1; day <= 5; day++) {
-  insertAvail.run(5, day, "11:00", "17:00");
-}
+// ═══════════════════════════════════════════════════════════════
+// SHIFT TEMPLATES — Mon-Fri daily shift for every student
+// ═══════════════════════════════════════════════════════════════
 
-// Overnight staff also available evenings
-for (const staffId of [2, 4, 8]) {
-  for (let day = 1; day <= 5; day++) {
-    insertAvail.run(staffId, day, "21:00", "07:00");
-  }
-}
-
-// ── PTO ──
-const insertPto = db.prepare(`
-  INSERT INTO staff_pto (staff_id, start_date, end_date, reason)
-  VALUES (?, ?, ?, ?)
-`);
-
-insertPto.run(3, "2026-04-13", "2026-04-14", "Personal day");
-insertPto.run(7, "2026-04-15", "2026-04-17", "Family vacation");
-
-// ── Shift templates (recurring weekly needs) ──
 const insertTemplate = db.prepare(`
   INSERT INTO shift_template (student_id, day_of_week, start_time, end_time, shift_type, activity_type, needs_swim_support)
   VALUES (?, ?, ?, ?, ?, ?, ?)
 `);
-
-// Each student gets daily shifts Mon-Fri
-for (let studentId = 1; studentId <= 6; studentId++) {
+const everyStudent = db.prepare("SELECT id FROM student WHERE active = 1").all() as Array<{ id: number }>;
+for (const s of everyStudent) {
   for (let day = 1; day <= 5; day++) {
-    insertTemplate.run(studentId, day, "08:00", "14:00", "regular", "general", 0);
+    insertTemplate.run(s.id, day, "08:00", "14:00", "regular", "general", 0);
   }
 }
+insertTemplate.run(stid["Andrew"], 4, "10:00", "11:00", "regular", "swimming", 1);
+insertTemplate.run(stid["Josh G"], 3, "10:00", "11:00", "regular", "swimming", 1);
+insertTemplate.run(stid["Nick"], 2, "09:00", "10:00", "regular", "massage", 0);
 
-// Swim shifts
-insertTemplate.run(1, 3, "10:00", "11:00", "regular", "swimming", 1); // Ethan Wed
-insertTemplate.run(3, 2, "10:00", "11:00", "regular", "swimming", 1); // Liam Tue
-insertTemplate.run(3, 4, "10:00", "11:00", "regular", "swimming", 1); // Liam Thu
-insertTemplate.run(6, 5, "10:00", "11:00", "regular", "swimming", 1); // Ava Fri
+// ═══════════════════════════════════════════════════════════════
+// DEDICATED ROLES
+// ═══════════════════════════════════════════════════════════════
 
-// Overnight shift for Liam
-insertTemplate.run(3, 1, "21:00", "07:00", "overnight", "general", 0); // Liam Mon night
-insertTemplate.run(3, 3, "21:00", "07:00", "overnight", "general", 0); // Liam Wed night
-
-// ── Sample shifts for week of April 13, 2026 (Mon-Fri) ──
-const insertShift = db.prepare(`
-  INSERT INTO shift (student_id, assigned_staff_id, date, start_time, end_time, shift_type, activity_type, needs_swim_support, status)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+const insertDedicated = db.prepare(`
+  INSERT INTO staff_dedicated_role (staff_id, role, label, day_of_week, notes) VALUES (?, ?, ?, ?, ?)
 `);
+insertDedicated.run(sid["Taylor"], "academics", "Academics", null, "Academics lead all week");
+insertDedicated.run(sid["Ben"], "crisis_support", "Crisis Support", null, "Crisis support all week");
 
-const weekDates = ["2026-04-13", "2026-04-14", "2026-04-15", "2026-04-16", "2026-04-17"];
+// ═══════════════════════════════════════════════════════════════
+// PTO — from the spreadsheet "Scheduled OFF" and "OUT" rows
+// ═══════════════════════════════════════════════════════════════
 
-// Assign regular daily shifts
-const dailyAssignments: [number, number, number][] = [
-  // [studentId, staffId, dayIndex]
-  // Monday
-  [1, 1, 0], [2, 3, 0], [3, 4, 0], [4, 5, 0], [5, 6, 0], [6, 9, 0],
-  // Tuesday
-  [1, 4, 1], [2, 1, 1], [3, 6, 1], [4, 7, 1], [5, 2, 1], [6, 3, 1],
-  // Wednesday
-  [1, 6, 2], [2, 5, 2], [3, 2, 2], [4, 8, 2], [5, 4, 2], [6, 1, 2],
-  // Thursday
-  [1, 9, 3], [2, 3, 3], [3, 4, 3], [4, 1, 3], [5, 6, 3], [6, 10, 3],
-  // Friday
-  [1, 2, 4], [2, 7, 4], [3, 8, 4], [4, 3, 4], [5, 9, 4], [6, 4, 4],
-];
+const insertPto = db.prepare(
+  "INSERT INTO staff_pto (staff_id, start_date, end_date, reason) VALUES (?, ?, ?, ?)"
+);
+insertPto.run(sid["Jon"],       "2026-03-23", "2026-03-25", "Scheduled OFF");
+insertPto.run(sid["Laura"],     "2026-03-23", "2026-03-23", "Scheduled OFF");
+insertPto.run(sid["Jerica"],    "2026-03-23", "2026-03-23", "Scheduled OFF");
+insertPto.run(sid["Jason E"],   "2026-03-26", "2026-03-26", "Scheduled OFF");
+insertPto.run(sid["Kyle"],      "2026-03-26", "2026-03-27", "Scheduled OFF");
+insertPto.run(sid["JNFR"],      "2026-03-27", "2026-03-27", "Scheduled OFF");
+insertPto.run(sid["Channing"],  "2026-03-27", "2026-03-27", "Scheduled OFF");
+insertPto.run(sid["Lauren"],    "2026-03-27", "2026-03-27", "Scheduled OFF");
+insertPto.run(sid["Courtney"],  "2026-03-27", "2026-03-27", "Scheduled OFF");
+insertPto.run(sid["Jennifer"],  "2026-03-27", "2026-03-27", "Scheduled OFF");
+insertPto.run(sid["Parker"],    "2026-03-27", "2026-03-27", "Scheduled OFF");
+insertPto.run(sid["Daniel"],    "2026-03-27", "2026-03-27", "Scheduled OFF");
+insertPto.run(sid["Layla"],     "2026-03-23", "2026-03-24", "OUT");
+insertPto.run(sid["Matt"],      "2026-03-24", "2026-03-24", "OUT");
+insertPto.run(sid["Allen"],     "2026-03-24", "2026-03-24", "OUT");
 
-for (const [studentId, staffId, dayIdx] of dailyAssignments) {
-  insertShift.run(studentId, staffId, weekDates[dayIdx], "08:00", "14:00", "regular", "general", 0, "scheduled");
+// ═══════════════════════════════════════════════════════════════
+// STUDENT ABSENCES
+// ═══════════════════════════════════════════════════════════════
+
+const insertAbsence = db.prepare(
+  "INSERT INTO student_absence (student_id, date, reason) VALUES (?, ?, ?)"
+);
+for (const date of ["2026-03-23", "2026-03-24", "2026-03-25", "2026-03-26", "2026-03-27"]) {
+  insertAbsence.run(stid["Josh C"], date, "OUT all week");
+}
+insertAbsence.run(stid["Nya"], "2026-03-25", "OUT");
+insertAbsence.run(stid["Nya"], "2026-03-26", "OUT");
+insertAbsence.run(stid["Nya"], "2026-03-27", "OUT");
+insertAbsence.run(stid["Adam"], "2026-03-26", "OUT");
+insertAbsence.run(stid["Adam"], "2026-03-27", "OUT");
+insertAbsence.run(stid["Kelly B."], "2026-03-27", "OUT");
+insertAbsence.run(stid["Gavin"], "2026-03-27", "OUT");
+insertAbsence.run(stid["Angela"], "2026-03-23", "OUT");
+
+// ═══════════════════════════════════════════════════════════════
+// MEETINGS
+// ═══════════════════════════════════════════════════════════════
+
+const insertMeeting = db.prepare(`
+  INSERT INTO meeting (title, meeting_type, date, start_time, end_time, notes) VALUES (?, ?, ?, ?, ?, ?)
+`);
+insertMeeting.run("Declan 8:15am (Paal prep)", "team_meeting", "2026-03-24", "08:15", "09:00", null);
+insertMeeting.run("All Staff Meeting 8:15 - 3rd Fl", "team_meeting", "2026-03-25", "08:15", "09:00", "3rd Floor");
+insertMeeting.run("Kyler 8:15am (Paal prep)", "team_meeting", "2026-03-26", "08:15", "09:00", null);
+for (const [title, date] of [
+  ["Analysis Meeting: Angela", "2026-03-23"],
+  ["Analysis Meeting: Leo", "2026-03-24"],
+  ["Analysis Meeting: Zach", "2026-03-25"],
+  ["Analysis Meeting: Tristan", "2026-03-26"],
+  ["Analysis Meeting: Josh G", "2026-03-27"],
+] as [string, string][]) {
+  insertMeeting.run(title, "analysis_meeting", date, "08:00", "08:30", null);
 }
 
-// Swim shifts
-insertShift.run(1, 1, "2026-04-15", "10:00", "11:00", "regular", "swimming", 1, "scheduled"); // Ethan Wed - Maria
-insertShift.run(3, 9, "2026-04-14", "10:00", "11:00", "regular", "swimming", 1, "scheduled"); // Liam Tue - Jessica
-insertShift.run(3, 4, "2026-04-16", "10:00", "11:00", "regular", "swimming", 1, "scheduled"); // Liam Thu - David
-insertShift.run(6, 6, "2026-04-17", "10:00", "11:00", "regular", "swimming", 1, "scheduled"); // Ava Fri - Marcus
+// ═══════════════════════════════════════════════════════════════
+// ONBOARDING
+// ═══════════════════════════════════════════════════════════════
 
-// Overnight shifts
-insertShift.run(3, 2, "2026-04-13", "21:00", "07:00", "overnight", "general", 0, "scheduled"); // Liam Mon - James
-insertShift.run(3, 8, "2026-04-15", "21:00", "07:00", "overnight", "general", 0, "scheduled"); // Liam Wed - Robert
-
-// One callout scenario: Emily called out Thursday
-const calloutShiftId = dailyAssignments.findIndex(([s, st, d]) => st === 7 && d === 3);
-// Emily (7) isn't assigned Thursday in our data, so let's create a callout on Tuesday for Emily
-// Emily is assigned student 4 (Sophia) on Tuesday
-insertShift.run(4, null, "2026-04-14", "08:00", "14:00", "regular", "general", 0, "open");
-
-const insertCallout = db.prepare(`
-  INSERT INTO callout (shift_id, original_staff_id, reason, resolved)
-  VALUES (?, ?, ?, ?)
+const insertOnboarding = db.prepare(`
+  INSERT INTO staff_onboarding (staff_id, student_id, current_day, total_days, scheduled_date, notes)
+  VALUES (?, ?, ?, ?, ?, ?)
 `);
+insertOnboarding.run(sid["Daniel"],   stid["Matthew"], 3, 3, "2026-03-23", "Day 3");
+insertOnboarding.run(sid["Greg"],     stid["Matthew"], 1, 3, "2026-03-24", "First Day");
+insertOnboarding.run(sid["Lauren"],   stid["Matthew"], 1, 3, "2026-03-25", "First Day");
+insertOnboarding.run(sid["Alisha"],   stid["Bobby"],   3, 3, "2026-03-23", "Day 3");
+insertOnboarding.run(sid["Shawna"],   stid["Bobby"],   1, 3, "2026-03-25", "First day");
+insertOnboarding.run(sid["Kirsten"],  stid["Trevor"],  1, 3, "2026-03-26", "Day 1");
+insertOnboarding.run(sid["Tella"],    stid["Trevor"],  2, 3, "2026-03-27", "Day 2");
+insertOnboarding.run(sid["Wren"],     stid["Chris F"], 3, 3, "2026-03-23", "Day 3");
+insertOnboarding.run(sid["Abbigail"], stid["Chris F"], 1, 3, "2026-03-25", "First day");
+insertOnboarding.run(sid["Wren"],     stid["Chris F"], 2, 3, "2026-03-27", "Day 2");
+insertOnboarding.run(sid["Mar"],      stid["Kieran"],  2, 3, "2026-03-26", "Day 2");
+insertOnboarding.run(sid["Kelly"],    stid["Kieran"],  3, 3, "2026-03-27", "Day 3");
+insertOnboarding.run(sid["Kyra"],     stid["Declan"],  2, 3, "2026-03-24", "In @10:30 / Day 2");
+insertOnboarding.run(sid["Kyle"],     stid["Declan"],  3, 3, "2026-03-25", "Day 3");
+insertOnboarding.run(sid["Jon"],      stid["Declan"],  3, 3, "2026-03-27", "Day 3");
+insertOnboarding.run(sid["Alisha"],   stid["Angela"],  3, 3, "2026-03-24", "Day 3");
+insertOnboarding.run(sid["Jessica"],  stid["Angela"],  1, 3, "2026-03-25", "First day");
+insertOnboarding.run(sid["Alexis"],   stid["Kieran"],  1, 3, "2026-03-26", "First day");
 
-// Get the last inserted shift id for the open one
-const lastShift = db.prepare("SELECT MAX(id) as id FROM shift WHERE status = 'open'").get() as { id: number };
-// The Tuesday Sophia shift with Emily was assigned - let's update it
-// Actually let's make one of the existing shifts a callout
-const tuesdaySophia = db.prepare(
-  "SELECT id FROM shift WHERE student_id = 4 AND date = '2026-04-14' AND assigned_staff_id = 7"
-).get() as { id: number } | undefined;
+// ═══════════════════════════════════════════════════════════════
+// SUMMARY
+// ═══════════════════════════════════════════════════════════════
 
-if (tuesdaySophia) {
-  db.prepare("UPDATE shift SET status = 'called_out', assigned_staff_id = NULL WHERE id = ?").run(tuesdaySophia.id);
-  insertCallout.run(tuesdaySophia.id, 7, "Sick - called out morning of", 0);
-}
+const c = (table: string) => (db.prepare(`SELECT COUNT(*) as c FROM ${table}`).get() as { c: number }).c;
 
-console.log("Seed data inserted successfully!");
-console.log("  - 10 staff members");
-console.log("  - 6 students");
-console.log("  - Training assignments mapped");
-console.log("  - Availability set for all staff");
-console.log("  - 2 PTO entries");
-console.log("  - Shift templates for recurring needs");
-console.log("  - Sample shifts for week of April 13, 2026");
-console.log("  - 1 callout scenario");
+console.log("\nSeed data inserted successfully!");
+console.log(`  ${c("staff")} staff members (${directCareStaff.length} direct care + ${supervisorStaff.length} supervisors/leads)`);
+console.log(`  ${c("student")} students`);
+console.log(`  ${c("student_group")} student group`);
+console.log(`  ${c("staff_student_training")} training records`);
+console.log(`  ${c("shift_template")} shift templates`);
+console.log(`  ${c("staff_pto")} PTO entries`);
+console.log(`  ${c("student_absence")} student absences`);
+console.log(`  ${c("meeting")} meetings`);
+console.log(`  ${c("staff_onboarding")} onboarding records`);
+console.log(`  ${c("staff_dedicated_role")} dedicated roles`);
+if (trainingWarnings > 0) console.log(`  ${trainingWarnings} warnings (see above)`);
 
 db.close();

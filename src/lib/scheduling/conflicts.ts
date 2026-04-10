@@ -1,13 +1,9 @@
-import Database from "better-sqlite3";
-import path from "path";
 import type { ScheduleWarning } from "@/types";
+import { getDb as _getDb } from "@/lib/db-utils";
 import { MAX_SAME_STUDENT_PER_WEEK, MAX_SWIM_SHIFTS_PER_WEEK } from "./rules";
 
 function getDb() {
-  const dbPath = path.join(process.cwd(), "data", "schedule.db");
-  const db = new Database(dbPath, { readonly: true });
-  db.pragma("foreign_keys = ON");
-  return db;
+  return _getDb(true);
 }
 
 /** Split a time range into segments — overnight ranges become two segments split at midnight */

@@ -58,8 +58,8 @@ export default function StaffPage() {
 
       {staffError && <ErrorBanner message="Failed to load staff list." onRetry={() => mutate()} />}
 
-      <div className="flex items-center gap-3 mb-4">
-        <div className="relative flex-1 max-w-xs">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 mb-4">
+        <div className="relative flex-1 sm:max-w-xs">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             value={search}
@@ -80,15 +80,15 @@ export default function StaffPage() {
         </select>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border">
+      {/* Desktop table */}
+      <div className="hidden md:block bg-white rounded-lg shadow-sm border">
         <table className="w-full">
           <thead>
             <tr className="border-b bg-gray-50">
               <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Name</th>
               <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Role</th>
               <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Capabilities</th>
-              <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Max Hrs/Wk</th>
-              <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Trained Students</th>
+              <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Trained</th>
               <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Status</th>
               <th className="px-4 py-3"></th>
             </tr>
@@ -100,41 +100,46 @@ export default function StaffPage() {
                 <td className="px-4 py-3 text-sm text-gray-600 capitalize">{(s.role as string).replace("_", " ")}</td>
                 <td className="px-4 py-3">
                   <div className="flex gap-1">
-                    {s.can_cover_swim ? (
-                      <Badge variant="info"><Droplets size={12} className="mr-1" />Swim</Badge>
-                    ) : null}
-                    {s.can_work_overnight ? (
-                      <Badge variant="default"><Moon size={12} className="mr-1" />Overnight</Badge>
-                    ) : null}
+                    {s.can_cover_swim ? <Badge variant="info"><Droplets size={12} className="mr-1" />Swim</Badge> : null}
+                    {s.can_work_overnight ? <Badge variant="default"><Moon size={12} className="mr-1" />Overnight</Badge> : null}
                   </div>
                 </td>
-                <td className="px-4 py-3 text-sm text-gray-600">{(s.max_hours_per_week as number) || "—"}</td>
                 <td className="px-4 py-3 text-sm text-gray-600">
-                  {(s.trained_student_ids as string)
-                    ? (s.trained_student_ids as string).split(",").length
-                    : 0}
+                  {(s.trained_student_ids as string) ? (s.trained_student_ids as string).split(",").length : 0} students
                 </td>
                 <td className="px-4 py-3">
-                  <Badge variant={s.active ? "success" : "default"}>
-                    {s.active ? "Active" : "Inactive"}
-                  </Badge>
+                  <Badge variant={s.active ? "success" : "default"}>{s.active ? "Active" : "Inactive"}</Badge>
                 </td>
                 <td className="px-4 py-3">
-                  <Link
-                    href={`/staff/${s.id}`}
-                    className="text-blue-600 hover:text-blue-800"
-                  >
-                    <Edit2 size={16} />
-                  </Link>
+                  <Link href={`/staff/${s.id}`} className="text-blue-600 hover:text-blue-800"><Edit2 size={16} /></Link>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
         {filtered.length === 0 && (
-          <div className="text-center py-8 text-gray-500">
-            {!staff || staff.length === 0 ? "No staff members yet." : "No staff match your filters."}
-          </div>
+          <div className="text-center py-8 text-gray-500">{!staff || staff.length === 0 ? "No staff members yet." : "No staff match your filters."}</div>
+        )}
+      </div>
+
+      {/* Mobile cards */}
+      <div className="md:hidden space-y-2">
+        {filtered.map((s: Record<string, unknown>) => (
+          <Link key={s.id as number} href={`/staff/${s.id}`} className="block bg-white rounded-lg shadow-sm border p-3 active:bg-gray-50">
+            <div className="flex items-center justify-between mb-1">
+              <span className="font-medium text-gray-900">{s.name as string}</span>
+              <Badge variant={s.active ? "success" : "default"}>{s.active ? "Active" : "Inactive"}</Badge>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <span className="capitalize">{(s.role as string).replace("_", " ")}</span>
+              {s.can_cover_swim ? <Badge variant="info" className="text-[10px]">Swim</Badge> : null}
+              {s.can_work_overnight ? <Badge variant="default" className="text-[10px]">Night</Badge> : null}
+              <span>{(s.trained_student_ids as string) ? (s.trained_student_ids as string).split(",").length : 0} trained</span>
+            </div>
+          </Link>
+        ))}
+        {filtered.length === 0 && (
+          <div className="text-center py-8 text-gray-500">{!staff || staff.length === 0 ? "No staff members yet." : "No staff match your filters."}</div>
         )}
       </div>
 
@@ -152,7 +157,7 @@ export default function StaffPage() {
               <option value="supervisor">Supervisor</option>
             </select>
           </div>
-          <div className="flex gap-6">
+          <div className="flex flex-wrap gap-x-6 gap-y-2">
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" name="can_cover_swim" className="rounded" />
               Swim Certified

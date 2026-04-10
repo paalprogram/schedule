@@ -1,6 +1,5 @@
-import Database from "better-sqlite3";
-import path from "path";
 import type { CandidateScore } from "@/types";
+import { getDb as _getDb } from "@/lib/db-utils";
 import {
   isStaffOnPto,
   isStaffAvailable,
@@ -19,10 +18,7 @@ import {
 import { MAX_SAME_STUDENT_PER_WEEK, MAX_SWIM_SHIFTS_PER_WEEK, SCORE_WEIGHTS as W, LOAD_THRESHOLDS } from "./rules";
 
 function getDb() {
-  const dbPath = path.join(process.cwd(), "data", "schedule.db");
-  const db = new Database(dbPath, { readonly: true });
-  db.pragma("foreign_keys = ON");
-  return db;
+  return _getDb(true);
 }
 
 interface ScoreShiftInput {

@@ -34,7 +34,7 @@ export default function RootLayout({
         <ToastProvider>
           <ConfirmProvider>
             <Nav />
-            <main className="flex-1 p-6 max-w-[1400px] mx-auto w-full">
+            <main className="flex-1 px-3 sm:px-4 md:px-6 py-3 md:py-4 max-w-[1400px] mx-auto w-full">
               {children}
             </main>
           </ConfirmProvider>
