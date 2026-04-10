@@ -1,23 +1,23 @@
-app = "scheduleapp"
-primary_region = "ewr"
+# fly.toml app configuration file generated for schedule on 2026-04-10T15:12:46Z
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
 
-[env]
-  DB_PATH = "/data/schedule.db"
-  NODE_ENV = "production"
+app = 'schedule'
+primary_region = 'ams'
 
 [build]
 
 [http_service]
-  internal_port = 3000
+  internal_port = 8080
   force_https = true
-  auto_stop_machines = "suspend"
+  auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 0
-
-[mounts]
-  source = "scheduleapp_data"
-  destination = "/data"
+  processes = ['app']
 
 [[vm]]
-  size = "shared-cpu-1x"
-  memory = "512mb"
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 256
