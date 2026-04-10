@@ -65,6 +65,13 @@ export function usePreferences(studentId?: number) {
   );
 }
 
+export function useMeetings(weekStart?: string, weekEnd?: string) {
+  const params = new URLSearchParams();
+  if (weekStart) params.set("weekStart", weekStart);
+  if (weekEnd) params.set("weekEnd", weekEnd);
+  return useSWR(`/api/meetings?${params.toString()}`, fetcher, retryOpts);
+}
+
 export function useOnboarding(activeOnly = true) {
   return useSWR(`/api/onboarding?active=${activeOnly}`, fetcher, retryOpts);
 }

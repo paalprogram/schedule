@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { Check, AlertTriangle, X } from "lucide-react";
+import { Check, AlertTriangle, X, Save } from "lucide-react";
 import type { CandidateScore } from "@/types";
 
 interface CandidatePanelProps {
@@ -21,12 +21,21 @@ export function CandidatePanel({ shiftId, onClose, onAssign }: CandidatePanelPro
   const [shift, setShift] = useState<Record<string, unknown> | null>(null);
   const [overrideNote, setOverrideNote] = useState("");
   const [assigning, setAssigning] = useState<number | null>(null);
+  const [shiftNotes, setShiftNotes] = useState("");
+  const [shiftOverride, setShiftOverride] = useState("");
+  const [savingNotes, setSavingNotes] = useState(false);
 
   useEffect(() => {
     if (shiftId) {
-      fetch(`/api/shifts/${shiftId}`).then(r => r.json()).then(setShift);
+      fetch(`/api/shifts/${shiftId}`).then(r => r.json()).then(s => {
+        setShift(s);
+        setShiftNotes(s.notes || "");
+        setShiftOverride(s.override_note || "");
+      });
     } else {
       setShift(null);
+      setShiftNotes("");
+      setShiftOverride("");
     }
   }, [shiftId]);
 
@@ -93,6 +102,47 @@ export function CandidatePanel({ shiftId, onClose, onAssign }: CandidatePanelPro
               </button>
             </div>
           ) : null}
+          <div className="mt-3 space-y-2 border-t pt-2">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-0.5">Shift Notes</label>
+              <input
+                value={shiftNotes}
+                onChange={e => setShiftNotes(e.target.value)}
+                className="w-full border rounded px-2 py-1 text-xs"
+                placeholder="e.g. See Kaitlin/Swim, In @10:30..."
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-0.5">Override Note</label>
+              <input
+                value={shiftOverride}
+                onChange={e => setShiftOverride(e.target.value)}
+                className="w-full border rounded px-2 py-1 text-xs"
+                placeholder="Reason for manual override..."
+              />
+            </div>
+            <button
+              onClick={async () => {
+                setSavingNotes(true);
+                await fetch(`/api/shifts/${shiftId}`, {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    assigned_staff_id: shift.assigned_staff_id,
+                    notes: shiftNotes || null,
+                    override_note: shiftOverride || null,
+                  }),
+                });
+                setSavingNotes(false);
+                toast("Notes saved");
+                onAssign();
+              }}
+              disabled={savingNotes}
+              className="flex items-center gap-1 px-2 py-1 bg-gray-600 text-white rounded text-xs hover:bg-gray-700 disabled:opacity-50"
+            >
+              <Save size={12} /> {savingNotes ? "Saving..." : "Save Notes"}
+            </button>
+          </div>
         </div>
       )}
 

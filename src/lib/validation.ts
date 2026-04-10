@@ -43,8 +43,12 @@ function isValidShiftType(value: unknown): value is string {
   return typeof value === "string" && ["regular", "overnight"].includes(value);
 }
 
+const VALID_ACTIVITY_TYPES = [
+  "general", "swimming", "community", "massage", "vocational", "academic_support", "training", "other",
+];
+
 function isValidActivityType(value: unknown): value is string {
-  return typeof value === "string" && ["general", "swimming", "community"].includes(value);
+  return typeof value === "string" && VALID_ACTIVITY_TYPES.includes(value);
 }
 
 function isValidStatus(value: unknown): value is string {
@@ -229,6 +233,25 @@ export function validatePreferenceCreate(body: Record<string, unknown>) {
   if (!isPositiveInt(body.staff_id)) errors.push({ field: "staff_id", message: "Valid staff ID required" });
   if (!isPositiveInt(body.student_id)) errors.push({ field: "student_id", message: "Valid student ID required" });
   if (!isValidPreferenceLevel(body.level)) errors.push({ field: "level", message: "Must be preferred, neutral, or avoid" });
+  return errors.length > 0 ? err(errors) : null;
+}
+
+const VALID_MEETING_TYPES = ["iep", "analysis_meeting", "team_meeting", "training", "other"];
+
+export function validateMeetingCreate(body: Record<string, unknown>) {
+  const errors: ValidationError[] = [];
+  if (!isNonEmptyString(body.title)) errors.push({ field: "title", message: "Title is required" });
+  if (!isValidDate(body.date)) errors.push({ field: "date", message: "Valid date required (YYYY-MM-DD)" });
+  if (!isValidTime(body.start_time)) errors.push({ field: "start_time", message: "Valid time required (HH:MM)" });
+  if (!isValidTime(body.end_time)) errors.push({ field: "end_time", message: "Valid time required (HH:MM)" });
+  if (body.meeting_type !== undefined && typeof body.meeting_type === "string" && !VALID_MEETING_TYPES.includes(body.meeting_type)) {
+    errors.push({ field: "meeting_type", message: "Must be iep, analysis_meeting, team_meeting, training, or other" });
+  }
+  if (body.staff_ids && Array.isArray(body.staff_ids)) {
+    for (let i = 0; i < body.staff_ids.length; i++) {
+      if (!isPositiveInt(body.staff_ids[i])) errors.push({ field: `staff_ids[${i}]`, message: "Must be a positive integer" });
+    }
+  }
   return errors.length > 0 ? err(errors) : null;
 }
 

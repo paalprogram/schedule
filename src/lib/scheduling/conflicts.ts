@@ -255,6 +255,24 @@ export function getOverlappingAssignments(
   return result;
 }
 
+export function getStaffMeetingConflict(staffId: number, date: string, startTime: string, endTime: string): { title: string; startTime: string; endTime: string } | null {
+  const db = getDb();
+  const meetings = db.prepare(`
+    SELECT m.title, m.start_time, m.end_time
+    FROM meeting m
+    JOIN meeting_attendee ma ON ma.meeting_id = m.id
+    WHERE ma.staff_id = ? AND m.date = ?
+  `).all(staffId, date) as Array<{ title: string; start_time: string; end_time: string }>;
+  db.close();
+
+  for (const m of meetings) {
+    if (timesOverlap(startTime, endTime, m.start_time, m.end_time)) {
+      return { title: m.title, startTime: m.start_time, endTime: m.end_time };
+    }
+  }
+  return null;
+}
+
 export function isStudentAbsent(studentId: number, date: string): boolean {
   const db = getDb();
   const result = db.prepare(`
@@ -571,6 +589,36 @@ export function detectWeekWarnings(weekStart: string, weekEnd: string): Schedule
       shiftId: pc.id,
       staffId: pc.assigned_staff_id,
     });
+  }
+
+  // Check meeting conflicts — staff assigned to shifts that overlap with their meetings
+  const meetingConflicts = db.prepare(`
+    SELECT s.id as shift_id, s.date, s.start_time, s.end_time, s.assigned_staff_id,
+           stf.name as staff_name, st.name as student_name,
+           m.title as meeting_title, m.start_time as meeting_start, m.end_time as meeting_end
+    FROM shift s
+    JOIN student st ON s.student_id = st.id
+    JOIN staff stf ON s.assigned_staff_id = stf.id
+    JOIN meeting_attendee ma ON ma.staff_id = s.assigned_staff_id
+    JOIN meeting m ON ma.meeting_id = m.id AND m.date = s.date
+    WHERE s.date >= ? AND s.date <= ?
+    AND s.status IN ('scheduled', 'covered')
+    AND s.assigned_staff_id IS NOT NULL
+  `).all(weekStart, weekEnd) as Array<{
+    shift_id: number; date: string; start_time: string; end_time: string; assigned_staff_id: number;
+    staff_name: string; student_name: string; meeting_title: string; meeting_start: string; meeting_end: string;
+  }>;
+
+  for (const mc of meetingConflicts) {
+    if (timesOverlap(mc.start_time, mc.end_time, mc.meeting_start, mc.meeting_end)) {
+      warnings.push({
+        type: "meeting_conflict",
+        severity: "warning",
+        message: `${mc.staff_name} has "${mc.meeting_title}" (${mc.meeting_start}-${mc.meeting_end}) overlapping ${mc.student_name}'s shift on ${mc.date}`,
+        shiftId: mc.shift_id,
+        staffId: mc.assigned_staff_id,
+      });
+    }
   }
 
   db.close();

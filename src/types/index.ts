@@ -144,6 +144,29 @@ export interface StudentGroupMember {
   studentId: number;
 }
 
+export interface Meeting {
+  id: number;
+  title: string;
+  meetingType: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  location: string | null;
+  notes: string | null;
+  createdAt: string;
+}
+
+export interface MeetingAttendee {
+  id: number;
+  meetingId: number;
+  staffId: number;
+  required: boolean;
+}
+
+export interface MeetingWithAttendees extends Meeting {
+  attendees: Array<{ staffId: number; staffName: string; required: boolean }>;
+}
+
 export interface CandidateScore {
   staffId: number;
   staffName: string;
@@ -183,7 +206,7 @@ export interface WeekSchedule {
 }
 
 export interface ScheduleWarning {
-  type: "over_twice" | "untrained" | "overlap" | "pto_conflict" | "swim_heavy" | "overnight_rest" | "uncovered" | "student_absent" | "dedicated_role_conflict" | "onboarding_sequence_broken";
+  type: "over_twice" | "untrained" | "overlap" | "pto_conflict" | "swim_heavy" | "overnight_rest" | "uncovered" | "student_absent" | "dedicated_role_conflict" | "onboarding_sequence_broken" | "meeting_conflict";
   severity: "error" | "warning" | "info";
   message: string;
   shiftId?: number;

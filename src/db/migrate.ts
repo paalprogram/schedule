@@ -167,6 +167,28 @@ db.exec(`
   );
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS meeting (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    meeting_type TEXT NOT NULL DEFAULT 'team_meeting',
+    date TEXT NOT NULL,
+    start_time TEXT NOT NULL,
+    end_time TEXT NOT NULL,
+    location TEXT,
+    notes TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS meeting_attendee (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    meeting_id INTEGER NOT NULL REFERENCES meeting(id) ON DELETE CASCADE,
+    staff_id INTEGER NOT NULL REFERENCES staff(id),
+    required INTEGER DEFAULT 1,
+    UNIQUE(meeting_id, staff_id)
+  );
+`);
+
 // Add group_id to student table if it doesn't exist
 try {
   db.exec(`ALTER TABLE student ADD COLUMN group_id INTEGER REFERENCES student_group(id)`);

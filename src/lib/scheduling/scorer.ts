@@ -14,6 +14,7 @@ import {
   getStaffStudentPreference,
   getStaffOnboardingForDate,
   getActiveOnboardingForDate,
+  getStaffMeetingConflict,
 } from "./conflicts";
 import { MAX_SAME_STUDENT_PER_WEEK, MAX_SWIM_SHIFTS_PER_WEEK, SCORE_WEIGHTS as W, LOAD_THRESHOLDS } from "./rules";
 
@@ -126,6 +127,21 @@ export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
         excluded = true;
         excludeReason = excludeReason ? excludeReason + " + Overlap conflict" : "Overlap conflict";
         tags.push("overlap conflict");
+      }
+    }
+
+    // Meeting conflict check
+    const meetingConflict = getStaffMeetingConflict(s.id, input.date, input.startTime, input.endTime);
+    if (meetingConflict) {
+      if (input.mode === "manual") {
+        warnings.push(`In meeting "${meetingConflict.title}" (${meetingConflict.startTime}-${meetingConflict.endTime})`);
+        tags.push("meeting conflict");
+      } else {
+        excluded = true;
+        excludeReason = excludeReason
+          ? excludeReason + ` + In meeting "${meetingConflict.title}"`
+          : `In meeting "${meetingConflict.title}" (${meetingConflict.startTime}-${meetingConflict.endTime})`;
+        tags.push("meeting conflict");
       }
     }
 

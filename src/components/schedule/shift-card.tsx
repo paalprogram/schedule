@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { formatTime } from "@/lib/utils";
-import { AlertTriangle, Droplets, Moon, PhoneOff, UserX, GraduationCap, Users } from "lucide-react";
+import { AlertTriangle, Droplets, Moon, PhoneOff, UserX, GraduationCap, Users, Heart, Briefcase, BookOpen, Dumbbell, StickyNote, MessageSquare } from "lucide-react";
 
 interface ShiftCardProps {
   shift: Record<string, unknown>;
@@ -18,9 +18,11 @@ export function ShiftCard({ shift, warnings, onClick, onCallout, onDragStart, on
   const { toast } = useToast();
   const confirm = useConfirm();
   const isOpen = !shift.assigned_staff_id || shift.status === "open" || shift.status === "called_out";
-  const isSwim = shift.needs_swim_support || shift.activity_type === "swimming";
+  const activityType = shift.activity_type as string;
+  const isSwim = shift.needs_swim_support || activityType === "swimming";
   const isOvernight = shift.shift_type === "overnight";
   const isAbsent = !!shift.studentAbsent;
+  const hasNote = !!(shift.override_note || shift.notes);
   const onboardingDay = shift.onboardingDay as number | null;
   const onboardingTotal = shift.onboardingTotalDays as number | null;
   const groupName = shift.group_name as string | null;
@@ -70,7 +72,12 @@ export function ShiftCard({ shift, warnings, onClick, onCallout, onDragStart, on
         <div className="flex gap-0.5">
           {isAbsent && <UserX size={12} className="text-gray-500" />}
           {isSwim && <Droplets size={12} className="text-blue-500" />}
+          {activityType === "massage" && <Heart size={12} className="text-pink-500" />}
+          {activityType === "vocational" && <Briefcase size={12} className="text-amber-600" />}
+          {activityType === "academic_support" && <BookOpen size={12} className="text-emerald-600" />}
+          {activityType === "training" && <Dumbbell size={12} className="text-cyan-600" />}
           {isOvernight && <Moon size={12} className="text-indigo-500" />}
+          {hasNote && <StickyNote size={12} className="text-yellow-500" />}
         </div>
       </div>
       {isAbsent && (
@@ -84,6 +91,17 @@ export function ShiftCard({ shift, warnings, onClick, onCallout, onDragStart, on
       )}
       <div className="text-gray-500 mb-1">
         {formatTime(shift.start_time as string)} - {formatTime(shift.end_time as string)}
+        {activityType !== "general" && (
+          <span className="ml-1 text-[10px] text-gray-400">
+            {activityType === "swimming" ? "Swim" :
+             activityType === "massage" ? "Massage" :
+             activityType === "vocational" ? "Vocational" :
+             activityType === "academic_support" ? "Academics" :
+             activityType === "training" ? "Training" :
+             activityType === "community" ? "Community" :
+             activityType === "other" ? "Other" : activityType}
+          </span>
+        )}
       </div>
       {isOpen ? (
         <Badge variant="error">UNCOVERED</Badge>
@@ -107,6 +125,18 @@ export function ShiftCard({ shift, warnings, onClick, onCallout, onDragStart, on
               </Badge>
             </div>
           )}
+        </div>
+      )}
+      {!!(shift.override_note) && (
+        <div className="mt-1 flex items-center gap-1">
+          <MessageSquare size={10} className="text-orange-500" />
+          <span className="text-orange-600 truncate text-[10px]">{shift.override_note as string}</span>
+        </div>
+      )}
+      {!!(shift.notes) && !(shift.override_note) && (
+        <div className="mt-1 flex items-center gap-1">
+          <StickyNote size={10} className="text-gray-400" />
+          <span className="text-gray-500 truncate text-[10px]">{shift.notes as string}</span>
         </div>
       )}
       {warnings.length > 0 && (

@@ -26,21 +26,33 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const db = getDb();
 
-  db.prepare(`
-    UPDATE shift SET
-      assigned_staff_id = ?,
-      status = ?,
-      override_note = COALESCE(?, override_note),
-      notes = COALESCE(?, notes),
-      updated_at = datetime('now')
-    WHERE id = ?
-  `).run(
-    body.assigned_staff_id ?? null,
-    body.status || (body.assigned_staff_id ? "scheduled" : "open"),
-    body.override_note ?? null,
-    body.notes ?? null,
-    id
-  );
+  // Build dynamic SET clause — only update fields that are explicitly provided
+  const sets: string[] = ["updated_at = datetime('now')"];
+  const values: (string | number | null)[] = [];
+
+  if ("assigned_staff_id" in body) {
+    sets.push("assigned_staff_id = ?");
+    values.push(body.assigned_staff_id ?? null);
+  }
+  if ("status" in body || "assigned_staff_id" in body) {
+    sets.push("status = ?");
+    values.push(body.status || (body.assigned_staff_id ? "scheduled" : "open"));
+  }
+  if ("override_note" in body) {
+    sets.push("override_note = ?");
+    values.push(body.override_note ?? null);
+  }
+  if ("notes" in body) {
+    sets.push("notes = ?");
+    values.push(body.notes ?? null);
+  }
+  if ("activity_type" in body) {
+    sets.push("activity_type = ?");
+    values.push(body.activity_type);
+  }
+
+  values.push(parseInt(id));
+  db.prepare(`UPDATE shift SET ${sets.join(", ")} WHERE id = ?`).run(...values);
 
   const shift = db.prepare(`
     SELECT s.*, st.name as student_name, stf.name as staff_name

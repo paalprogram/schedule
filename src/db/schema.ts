@@ -59,7 +59,7 @@ export const shift = sqliteTable("shift", {
   startTime: text("start_time").notNull(),
   endTime: text("end_time").notNull(),
   shiftType: text("shift_type").default("regular"), // regular, overnight
-  activityType: text("activity_type").default("general"), // general, swimming, community
+  activityType: text("activity_type").default("general"), // general, swimming, community, massage, vocational, academic_support, training, other
   needsSwimSupport: integer("needs_swim_support", { mode: "boolean" }).default(false),
   status: text("status").default("scheduled"), // scheduled, open, called_out, covered
   overrideNote: text("override_note"),
@@ -133,6 +133,25 @@ export const studentGroupMember = sqliteTable("student_group_member", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   groupId: integer("group_id").notNull().references(() => studentGroup.id),
   studentId: integer("student_id").notNull().references(() => student.id),
+});
+
+export const meeting = sqliteTable("meeting", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  title: text("title").notNull(), // "Analysis Meeting", "Team Meeting", "IEP: Nick"
+  meetingType: text("meeting_type").notNull().default("team_meeting"), // iep, analysis_meeting, team_meeting, training, other
+  date: text("date").notNull(),
+  startTime: text("start_time").notNull(),
+  endTime: text("end_time").notNull(),
+  location: text("location"),
+  notes: text("notes"),
+  createdAt: text("created_at").default(sql`(datetime('now'))`),
+});
+
+export const meetingAttendee = sqliteTable("meeting_attendee", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  meetingId: integer("meeting_id").notNull().references(() => meeting.id),
+  staffId: integer("staff_id").notNull().references(() => staff.id),
+  required: integer("required", { mode: "boolean" }).default(true),
 });
 
 export const shiftTemplate = sqliteTable("shift_template", {

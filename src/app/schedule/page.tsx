@@ -4,7 +4,7 @@ import { useSchedule, useStudents, useStaff, useAbsences } from "@/lib/hooks";
 import { getWeekBounds } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
-import { ChevronLeft, ChevronRight, Wand2, Download, Printer, Plus, AlertTriangle, UserX, FileText, UserMinus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Wand2, Download, Printer, Plus, AlertTriangle, UserX, FileText, UserMinus, Calendar } from "lucide-react";
 import { ErrorBanner } from "@/components/ui/error-banner";
 import { ShiftCard } from "@/components/schedule/shift-card";
 import { CandidatePanel } from "@/components/schedule/candidate-panel";
@@ -276,6 +276,27 @@ export default function SchedulePage() {
                     );
                   })}
                 </div>
+              </div>
+            )}
+            {/* Meetings for this day */}
+            {schedule?.meetings?.[day.date]?.length > 0 && (
+              <div className="px-2 pt-2 space-y-1">
+                {schedule.meetings[day.date].map((m: Record<string, unknown>) => (
+                  <div key={m.id as number} className="rounded border border-indigo-200 bg-indigo-50 p-1.5 text-xs">
+                    <div className="flex items-center gap-1 font-medium text-indigo-800">
+                      <Calendar size={10} />
+                      {m.title as string}
+                    </div>
+                    <div className="text-indigo-600 text-[10px]">
+                      {m.startTime as string} - {m.endTime as string}
+                      {(m.attendeeNames as string[])?.length > 0 && (
+                        <span className="ml-1 text-indigo-400">
+                          ({(m.attendeeNames as string[]).join(", ")})
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
             <div className="p-2 space-y-2 min-h-[200px]">

@@ -71,6 +71,11 @@ export function AddShiftForm({ date, onClose, onCreated }: AddShiftFormProps) {
               <option value="general">General</option>
               <option value="swimming">Swimming</option>
               <option value="community">Community</option>
+              <option value="massage">Massage</option>
+              <option value="vocational">Vocational</option>
+              <option value="academic_support">Academic Support</option>
+              <option value="training">Training</option>
+              <option value="other">Other</option>
             </select>
           </div>
         </div>

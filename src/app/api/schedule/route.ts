@@ -47,6 +47,37 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Load meetings for the week
+  const meetingDb = getDb(true);
+  const meetingsRaw = meetingDb.prepare(`
+    SELECT m.*, GROUP_CONCAT(s.name) as attendee_names, GROUP_CONCAT(ma.staff_id) as attendee_ids
+    FROM meeting m
+    LEFT JOIN meeting_attendee ma ON ma.meeting_id = m.id
+    LEFT JOIN staff s ON ma.staff_id = s.id
+    WHERE m.date >= ? AND m.date <= ?
+    GROUP BY m.id
+    ORDER BY m.date, m.start_time
+  `).all(weekStart!, weekEnd!) as Array<Record<string, unknown>>;
+  meetingDb.close();
+
+  // Group meetings by date
+  const meetingsByDate: Record<string, Array<Record<string, unknown>>> = {};
+  for (const m of meetingsRaw) {
+    const date = m.date as string;
+    if (!meetingsByDate[date]) meetingsByDate[date] = [];
+    meetingsByDate[date].push({
+      id: m.id,
+      title: m.title,
+      meetingType: m.meeting_type,
+      startTime: m.start_time,
+      endTime: m.end_time,
+      location: m.location,
+      notes: m.notes,
+      attendeeNames: m.attendee_names ? (m.attendee_names as string).split(",") : [],
+      attendeeIds: m.attendee_ids ? (m.attendee_ids as string).split(",").map(Number) : [],
+    });
+  }
+
   // Load student absences for the week
   const absenceDb = getDb(true);
   const absences = absenceDb.prepare(`
@@ -97,5 +128,6 @@ export async function GET(req: NextRequest) {
     days,
     warnings,
     absences: absencesByDate,
+    meetings: meetingsByDate,
   });
 }
