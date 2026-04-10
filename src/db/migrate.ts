@@ -136,6 +136,44 @@ db.exec(`
   );
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS staff_onboarding (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    staff_id INTEGER NOT NULL REFERENCES staff(id),
+    student_id INTEGER NOT NULL REFERENCES student(id),
+    current_day INTEGER NOT NULL DEFAULT 1,
+    total_days INTEGER NOT NULL DEFAULT 3,
+    scheduled_date TEXT,
+    completed INTEGER DEFAULT 0,
+    notes TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS student_group (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    staffing_ratio INTEGER NOT NULL DEFAULT 2,
+    active INTEGER DEFAULT 1,
+    notes TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS student_group_member (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id INTEGER NOT NULL REFERENCES student_group(id),
+    student_id INTEGER NOT NULL REFERENCES student(id),
+    UNIQUE(group_id, student_id)
+  );
+`);
+
+// Add group_id to student table if it doesn't exist
+try {
+  db.exec(`ALTER TABLE student ADD COLUMN group_id INTEGER REFERENCES student_group(id)`);
+} catch {
+  // Column already exists
+}
+
 // Add staffing_ratio column if it doesn't exist
 try {
   db.exec(`ALTER TABLE student ADD COLUMN staffing_ratio INTEGER DEFAULT 1`);

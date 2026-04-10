@@ -34,9 +34,13 @@ export function generateWeekFromTemplates(weekStartDate: string) {
     activity_type: string; needs_swim_support: number; notes: string | null;
   }>;
 
-  // Build student staffing ratio lookup
-  const students = db.prepare(`SELECT id, staffing_ratio FROM student`).all() as Array<{ id: number; staffing_ratio: number }>;
-  const ratioMap = new Map(students.map(s => [s.id, s.staffing_ratio || 1]));
+  // Build student staffing ratio lookup — group ratio overrides individual ratio
+  const students = db.prepare(`
+    SELECT s.id, s.staffing_ratio, s.group_id, sg.staffing_ratio as group_ratio
+    FROM student s
+    LEFT JOIN student_group sg ON s.group_id = sg.id
+  `).all() as Array<{ id: number; staffing_ratio: number; group_id: number | null; group_ratio: number | null }>;
+  const ratioMap = new Map(students.map(s => [s.id, s.group_ratio || s.staffing_ratio || 1]));
 
   const insertShift = db.prepare(`
     INSERT INTO shift (student_id, assigned_staff_id, date, start_time, end_time, shift_type, activity_type, needs_swim_support, status, notes)

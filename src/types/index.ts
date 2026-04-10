@@ -17,6 +17,7 @@ export interface Student {
   active: boolean;
   requiresSwimSupport: boolean;
   staffingRatio: number;
+  groupId: number | null;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -115,6 +116,34 @@ export interface StaffStudentPreference {
   createdAt: string;
 }
 
+export interface StaffOnboarding {
+  id: number;
+  staffId: number;
+  studentId: number;
+  currentDay: number;
+  totalDays: number;
+  scheduledDate: string | null;
+  completed: boolean;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StudentGroup {
+  id: number;
+  name: string;
+  staffingRatio: number;
+  active: boolean;
+  notes: string | null;
+  createdAt: string;
+}
+
+export interface StudentGroupMember {
+  id: number;
+  groupId: number;
+  studentId: number;
+}
+
 export interface CandidateScore {
   staffId: number;
   staffName: string;
@@ -129,6 +158,7 @@ export interface CandidateScore {
     swimEligible: boolean;
     preferenceLevel: "preferred" | "neutral" | "avoid" | null;
     hasDedicatedRole: boolean;
+    onboardingDay: number | null;
   };
   tags: string[];
   warnings: string[];
@@ -153,7 +183,7 @@ export interface WeekSchedule {
 }
 
 export interface ScheduleWarning {
-  type: "over_twice" | "untrained" | "overlap" | "pto_conflict" | "swim_heavy" | "overnight_rest" | "uncovered" | "student_absent" | "dedicated_role_conflict";
+  type: "over_twice" | "untrained" | "overlap" | "pto_conflict" | "swim_heavy" | "overnight_rest" | "uncovered" | "student_absent" | "dedicated_role_conflict" | "onboarding_sequence_broken";
   severity: "error" | "warning" | "info";
   message: string;
   shiftId?: number;

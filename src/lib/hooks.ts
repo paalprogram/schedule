@@ -65,6 +65,14 @@ export function usePreferences(studentId?: number) {
   );
 }
 
+export function useOnboarding(activeOnly = true) {
+  return useSWR(`/api/onboarding?active=${activeOnly}`, fetcher, retryOpts);
+}
+
+export function useStudentGroups() {
+  return useSWR("/api/student-groups", fetcher, retryOpts);
+}
+
 export function useReports(weekStart: string, weekEnd: string) {
   return useSWR(
     weekStart && weekEnd ? `/api/reports?weekStart=${weekStart}&weekEnd=${weekEnd}` : null,

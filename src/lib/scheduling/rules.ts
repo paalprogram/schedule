@@ -4,8 +4,8 @@
  * can eventually adjust them from a single place.
  */
 
-/** Maximum times the same staff should be assigned to the same student per week */
-export const MAX_SAME_STUDENT_PER_WEEK = 2;
+/** Maximum times the same staff should be assigned to the same student per week (real schedules show 3 is acceptable) */
+export const MAX_SAME_STUDENT_PER_WEEK = 3;
 
 /** Maximum swim shifts per staff member per week before triggering a warning */
 export const MAX_SWIM_SHIFTS_PER_WEEK = 2;
@@ -26,6 +26,7 @@ export const SCORE_WEIGHTS = {
 
   SAME_STUDENT_ZERO: 15,
   SAME_STUDENT_ONE: 10,
+  SAME_STUDENT_TWO: 5,
 
   SWIM_BELOW_AVG: 10,
   SWIM_NEAR_AVG: 5,
@@ -39,6 +40,8 @@ export const SCORE_WEIGHTS = {
 
   PREFERENCE_PREFERRED: 25,
   PREFERENCE_AVOID: -15,
+
+  ONBOARDING_THIS_STUDENT: 60,
 
   PENALTY_OVER_ASSIGNED: -20,
   PENALTY_UNTRAINED: -30,

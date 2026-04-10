@@ -13,14 +13,39 @@ export async function GET(req: NextRequest) {
 
   const db = getDb(true);
   const shifts = db.prepare(`
-    SELECT s.*, st.name as student_name, stf.name as staff_name
+    SELECT s.*, st.name as student_name, stf.name as staff_name,
+           st.group_id as student_group_id,
+           sg.name as group_name
     FROM shift s
     JOIN student st ON s.student_id = st.id
     LEFT JOIN staff stf ON s.assigned_staff_id = stf.id
+    LEFT JOIN student_group sg ON st.group_id = sg.id
     WHERE s.date >= ? AND s.date <= ?
     ORDER BY s.date, s.start_time, st.name
   `).all(weekStart!, weekEnd!);
+
+  // Load active onboarding assignments for the week to annotate shifts
+  const onboardingRows = db.prepare(`
+    SELECT o.staff_id, o.student_id, o.current_day, o.total_days, o.scheduled_date
+    FROM staff_onboarding o
+    WHERE o.completed = 0
+    AND (o.scheduled_date IS NULL OR (o.scheduled_date >= ? AND o.scheduled_date <= ?))
+  `).all(weekStart!, weekEnd!) as Array<{
+    staff_id: number; student_id: number; current_day: number; total_days: number; scheduled_date: string | null;
+  }>;
+
   db.close();
+
+  // Build a lookup: "staffId:studentId:date" -> onboarding info
+  const onboardingLookup = new Map<string, { currentDay: number; totalDays: number }>();
+  for (const ob of onboardingRows) {
+    if (ob.scheduled_date) {
+      onboardingLookup.set(`${ob.staff_id}:${ob.student_id}:${ob.scheduled_date}`, {
+        currentDay: ob.current_day,
+        totalDays: ob.total_days,
+      });
+    }
+  }
 
   // Load student absences for the week
   const absenceDb = getDb(true);
@@ -47,10 +72,16 @@ export async function GET(req: NextRequest) {
   const days = Array.from(dateSet).map(date => ({
     date,
     dayName: dayNames[new Date(date + "T00:00:00").getDay()],
-    shifts: (shifts as Array<Record<string, unknown>>).filter((s) => s.date === date).map(s => ({
-      ...s,
-      studentAbsent: absenceSet.has(`${s.student_id}:${s.date}`),
-    })),
+    shifts: (shifts as Array<Record<string, unknown>>).filter((s) => s.date === date).map(s => {
+      const obKey = `${s.assigned_staff_id}:${s.student_id}:${s.date}`;
+      const ob = s.assigned_staff_id ? onboardingLookup.get(obKey) : undefined;
+      return {
+        ...s,
+        studentAbsent: absenceSet.has(`${s.student_id}:${s.date}`),
+        onboardingDay: ob?.currentDay ?? null,
+        onboardingTotalDays: ob?.totalDays ?? null,
+      };
+    }),
   }));
 
   // Build a list of absent students per date for the UI

@@ -289,6 +289,46 @@ export function getStaffStudentPreference(staffId: number, studentId: number): s
   return result?.level ?? null;
 }
 
+export function getStaffOnboardingForDate(staffId: number, studentId: number, date: string): { currentDay: number; totalDays: number } | null {
+  const db = getDb();
+  const result = db.prepare(`
+    SELECT current_day, total_days FROM staff_onboarding
+    WHERE staff_id = ? AND student_id = ? AND completed = 0
+    AND (scheduled_date IS NULL OR scheduled_date = ?)
+  `).get(staffId, studentId, date) as { current_day: number; total_days: number } | undefined;
+  db.close();
+  if (!result) return null;
+  return { currentDay: result.current_day, totalDays: result.total_days };
+}
+
+export function getActiveOnboardingForDate(date: string): Array<{
+  staffId: number; studentId: number; currentDay: number; totalDays: number;
+  staffName: string; studentName: string;
+}> {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT o.staff_id, o.student_id, o.current_day, o.total_days,
+           s.name as staff_name, st.name as student_name
+    FROM staff_onboarding o
+    JOIN staff s ON o.staff_id = s.id
+    JOIN student st ON o.student_id = st.id
+    WHERE o.completed = 0
+    AND (o.scheduled_date IS NULL OR o.scheduled_date = ?)
+  `).all(date) as Array<{
+    staff_id: number; student_id: number; current_day: number; total_days: number;
+    staff_name: string; student_name: string;
+  }>;
+  db.close();
+  return rows.map(r => ({
+    staffId: r.staff_id,
+    studentId: r.student_id,
+    currentDay: r.current_day,
+    totalDays: r.total_days,
+    staffName: r.staff_name,
+    studentName: r.student_name,
+  }));
+}
+
 export function isStaffTrained(staffId: number, studentId: number): boolean {
   const db = getDb();
   const result = db.prepare(`
@@ -471,6 +511,39 @@ export function detectWeekWarnings(weekStart: string, weekEnd: string): Schedule
       shiftId: dc.id,
       staffId: dc.assigned_staff_id,
     });
+  }
+
+  // Check onboarding sequence — staff in onboarding should be assigned to their training student
+  const onboardingRows = db.prepare(`
+    SELECT o.staff_id, o.student_id, o.current_day, o.total_days, o.scheduled_date,
+           stf.name as staff_name, st.name as student_name
+    FROM staff_onboarding o
+    JOIN staff stf ON o.staff_id = stf.id
+    JOIN student st ON o.student_id = st.id
+    WHERE o.completed = 0
+    AND o.scheduled_date >= ? AND o.scheduled_date <= ?
+  `).all(weekStart, weekEnd) as Array<{
+    staff_id: number; student_id: number; current_day: number; total_days: number;
+    scheduled_date: string; staff_name: string; student_name: string;
+  }>;
+
+  for (const ob of onboardingRows) {
+    // Check if staff is actually assigned to their onboarding student on that date
+    const assigned = db.prepare(`
+      SELECT COUNT(*) as count FROM shift
+      WHERE assigned_staff_id = ? AND student_id = ? AND date = ?
+      AND status IN ('scheduled', 'covered')
+    `).get(ob.staff_id, ob.student_id, ob.scheduled_date) as { count: number };
+
+    if (assigned.count === 0) {
+      warnings.push({
+        type: "onboarding_sequence_broken",
+        severity: "warning",
+        message: `${ob.staff_name} has onboarding Day ${ob.current_day}/${ob.total_days} with ${ob.student_name} on ${ob.scheduled_date} but is not assigned`,
+        staffId: ob.staff_id,
+        studentId: ob.student_id,
+      });
+    }
   }
 
   // Check PTO conflicts

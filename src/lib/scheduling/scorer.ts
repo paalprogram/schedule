@@ -12,6 +12,8 @@ import {
   getStaffShiftsForWeek,
   hasStaffDedicatedRole,
   getStaffStudentPreference,
+  getStaffOnboardingForDate,
+  getActiveOnboardingForDate,
 } from "./conflicts";
 import { MAX_SAME_STUDENT_PER_WEEK, MAX_SWIM_SHIFTS_PER_WEEK, SCORE_WEIGHTS as W, LOAD_THRESHOLDS } from "./rules";
 
@@ -61,6 +63,11 @@ export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
   const isOvernight = input.shiftType === "overnight";
   const isSwim = input.needsSwimSupport;
 
+  // Pre-load onboarding records for this date
+  const allOnboarding = getActiveOnboardingForDate(input.date);
+  // Map staffId -> onboarding record (could be for a different student)
+  const onboardingByStaff = new Map(allOnboarding.map(o => [o.staffId, o]));
+
   // Get average swim count for normalization
   const swimCounts = allStaff.map(s => getStaffSwimCountForWeek(s.id, weekStart, weekEnd));
   const avgSwim = swimCounts.length > 0
@@ -79,6 +86,24 @@ export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
       excluded = true;
       excludeReason = "Has dedicated role";
       tags.push("dedicated role");
+    }
+
+    // Onboarding check — staff onboarding with another student today are excluded
+    const onboarding = onboardingByStaff.get(s.id);
+    let onboardingDay: number | null = null;
+    if (onboarding) {
+      if (onboarding.studentId === input.studentId) {
+        // This staff is onboarding with THIS student — great match
+        onboardingDay = onboarding.currentDay;
+        tags.push(`onboarding Day ${onboarding.currentDay}/${onboarding.totalDays}`);
+      } else {
+        // Onboarding with a different student — exclude from this assignment
+        excluded = true;
+        excludeReason = excludeReason
+          ? excludeReason + " + Onboarding elsewhere"
+          : `Onboarding with ${onboarding.studentName} today`;
+        tags.push("onboarding elsewhere");
+      }
     }
 
     const onPto = isStaffOnPto(s.id, input.date);
@@ -158,6 +183,7 @@ export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
 
       if (sameStudentCount === 0) score += W.SAME_STUDENT_ZERO;
       else if (sameStudentCount === 1) score += W.SAME_STUDENT_ONE;
+      else if (sameStudentCount === 2) score += W.SAME_STUDENT_TWO;
 
       if (isSwim) {
         if (swimCount < avgSwim) score += W.SWIM_BELOW_AVG;
@@ -180,6 +206,9 @@ export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
       } else {
         score += W.SWIM_ELIGIBLE;
       }
+
+      // Onboarding bonus — highest priority assignment
+      if (onboardingDay !== null) score += W.ONBOARDING_THIS_STUDENT;
 
       // Preference bonus/penalty
       if (preferenceLevel === "preferred") score += W.PREFERENCE_PREFERRED;
@@ -205,6 +234,7 @@ export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
         swimEligible,
         preferenceLevel,
         hasDedicatedRole: dedicatedRole,
+        onboardingDay,
       },
       tags,
       warnings,

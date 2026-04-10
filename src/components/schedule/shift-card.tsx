@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { formatTime } from "@/lib/utils";
-import { AlertTriangle, Droplets, Moon, PhoneOff, UserX } from "lucide-react";
+import { AlertTriangle, Droplets, Moon, PhoneOff, UserX, GraduationCap, Users } from "lucide-react";
 
 interface ShiftCardProps {
   shift: Record<string, unknown>;
@@ -21,6 +21,9 @@ export function ShiftCard({ shift, warnings, onClick, onCallout, onDragStart, on
   const isSwim = shift.needs_swim_support || shift.activity_type === "swimming";
   const isOvernight = shift.shift_type === "overnight";
   const isAbsent = !!shift.studentAbsent;
+  const onboardingDay = shift.onboardingDay as number | null;
+  const onboardingTotal = shift.onboardingTotalDays as number | null;
+  const groupName = shift.group_name as string | null;
 
   async function handleCallout(e: React.MouseEvent) {
     e.stopPropagation();
@@ -73,21 +76,37 @@ export function ShiftCard({ shift, warnings, onClick, onCallout, onDragStart, on
       {isAbsent && (
         <Badge variant="default">OUT</Badge>
       )}
+      {groupName && (
+        <div className="flex items-center gap-1 mb-0.5">
+          <Users size={10} className="text-purple-500" />
+          <span className="text-purple-600 text-[10px] font-medium truncate">{groupName}</span>
+        </div>
+      )}
       <div className="text-gray-500 mb-1">
         {formatTime(shift.start_time as string)} - {formatTime(shift.end_time as string)}
       </div>
       {isOpen ? (
         <Badge variant="error">UNCOVERED</Badge>
       ) : (
-        <div className="flex items-center justify-between">
-          <span className="text-gray-700 font-medium truncate">{shift.staff_name as string}</span>
-          <button
-            onClick={handleCallout}
-            className="text-gray-400 hover:text-red-500 ml-1"
-            title="Mark callout"
-          >
-            <PhoneOff size={12} />
-          </button>
+        <div>
+          <div className="flex items-center justify-between">
+            <span className="text-gray-700 font-medium truncate">{shift.staff_name as string}</span>
+            <button
+              onClick={handleCallout}
+              className="text-gray-400 hover:text-red-500 ml-1"
+              title="Mark callout"
+            >
+              <PhoneOff size={12} />
+            </button>
+          </div>
+          {onboardingDay !== null && (
+            <div className="flex items-center gap-1 mt-0.5">
+              <GraduationCap size={10} className="text-teal-600" />
+              <Badge variant="info">
+                {onboardingDay === 1 ? "First Day" : `Day ${onboardingDay}`}{onboardingTotal ? `/${onboardingTotal}` : ""}
+              </Badge>
+            </div>
+          )}
         </div>
       )}
       {warnings.length > 0 && (

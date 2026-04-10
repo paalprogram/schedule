@@ -20,6 +20,7 @@ export const student = sqliteTable("student", {
   active: integer("active", { mode: "boolean" }).default(true),
   requiresSwimSupport: integer("requires_swim_support", { mode: "boolean" }).default(false),
   staffingRatio: integer("staffing_ratio").default(1),
+  groupId: integer("group_id"),
   notes: text("notes"),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
   updatedAt: text("updated_at").default(sql`(datetime('now'))`),
@@ -104,6 +105,34 @@ export const staffStudentPreference = sqliteTable("staff_student_preference", {
   level: text("level").notNull().default("preferred"), // preferred, neutral, avoid
   reason: text("reason"),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
+});
+
+export const staffOnboarding = sqliteTable("staff_onboarding", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  staffId: integer("staff_id").notNull().references(() => staff.id),
+  studentId: integer("student_id").notNull().references(() => student.id),
+  currentDay: integer("current_day").notNull().default(1), // Day 1, Day 2, Day 3, etc.
+  totalDays: integer("total_days").notNull().default(3), // how many days required
+  scheduledDate: text("scheduled_date"), // next scheduled onboarding date
+  completed: integer("completed", { mode: "boolean" }).default(false),
+  notes: text("notes"),
+  createdAt: text("created_at").default(sql`(datetime('now'))`),
+  updatedAt: text("updated_at").default(sql`(datetime('now'))`),
+});
+
+export const studentGroup = sqliteTable("student_group", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(), // e.g. "Joey, Zach, Jae & Jamie"
+  staffingRatio: integer("staffing_ratio").notNull().default(2), // staff needed for the group
+  active: integer("active", { mode: "boolean" }).default(true),
+  notes: text("notes"),
+  createdAt: text("created_at").default(sql`(datetime('now'))`),
+});
+
+export const studentGroupMember = sqliteTable("student_group_member", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  groupId: integer("group_id").notNull().references(() => studentGroup.id),
+  studentId: integer("student_id").notNull().references(() => student.id),
 });
 
 export const shiftTemplate = sqliteTable("shift_template", {

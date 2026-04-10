@@ -232,6 +232,33 @@ export function validatePreferenceCreate(body: Record<string, unknown>) {
   return errors.length > 0 ? err(errors) : null;
 }
 
+export function validateOnboardingCreate(body: Record<string, unknown>) {
+  const errors: ValidationError[] = [];
+  if (!isPositiveInt(body.staff_id)) errors.push({ field: "staff_id", message: "Valid staff ID required" });
+  if (!isPositiveInt(body.student_id)) errors.push({ field: "student_id", message: "Valid student ID required" });
+  if (body.total_days !== undefined && (!Number.isInteger(body.total_days) || (body.total_days as number) < 1)) {
+    errors.push({ field: "total_days", message: "Must be a positive integer" });
+  }
+  if (body.scheduled_date !== undefined && body.scheduled_date !== null && !isValidDate(body.scheduled_date)) {
+    errors.push({ field: "scheduled_date", message: "Valid date required (YYYY-MM-DD)" });
+  }
+  return errors.length > 0 ? err(errors) : null;
+}
+
+export function validateStudentGroupCreate(body: Record<string, unknown>) {
+  const errors: ValidationError[] = [];
+  if (!isNonEmptyString(body.name)) errors.push({ field: "name", message: "Name is required" });
+  if (body.staffing_ratio !== undefined && (!Number.isInteger(body.staffing_ratio) || (body.staffing_ratio as number) < 1)) {
+    errors.push({ field: "staffing_ratio", message: "Must be a positive integer" });
+  }
+  if (body.student_ids && Array.isArray(body.student_ids)) {
+    for (let i = 0; i < body.student_ids.length; i++) {
+      if (!isPositiveInt(body.student_ids[i])) errors.push({ field: `student_ids[${i}]`, message: "Must be a positive integer" });
+    }
+  }
+  return errors.length > 0 ? err(errors) : null;
+}
+
 export function validateDateRange(weekStart: string | null, weekEnd: string | null) {
   const errors: ValidationError[] = [];
   if (!weekStart || !isValidDate(weekStart)) errors.push({ field: "weekStart", message: "Valid date required (YYYY-MM-DD)" });
