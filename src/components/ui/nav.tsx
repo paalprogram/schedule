@@ -1,9 +1,9 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Calendar, Users, GraduationCap, AlertTriangle, BarChart3, LayoutDashboard, Menu, X } from "lucide-react";
+import { Calendar, Users, GraduationCap, AlertTriangle, BarChart3, LayoutDashboard, Menu, X, LogOut } from "lucide-react";
 
 const links = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -16,7 +16,16 @@ const links = [
 
 export function Nav() {
   const pathname = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
+
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
+  }
+
+  if (pathname === "/login") return null;
 
   return (
     <nav className="bg-white border-b border-gray-200 print:hidden">
@@ -27,7 +36,7 @@ export function Nav() {
           </Link>
 
           {/* Desktop nav */}
-          <div className="hidden md:flex gap-0.5">
+          <div className="hidden md:flex items-center gap-0.5">
             {links.map(({ href, label, icon: Icon }) => {
               const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
               return (
@@ -46,6 +55,10 @@ export function Nav() {
                 </Link>
               );
             })}
+            <div className="w-px h-5 bg-gray-200 mx-1" />
+            <button onClick={handleLogout} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors">
+              <LogOut size={15} />
+            </button>
           </div>
 
           {/* Mobile menu button */}
@@ -75,6 +88,13 @@ export function Nav() {
               </Link>
             );
           })}
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-red-500 w-full mt-1 border-t pt-3"
+          >
+            <LogOut size={18} />
+            Sign Out
+          </button>
         </div>
       )}
     </nav>
