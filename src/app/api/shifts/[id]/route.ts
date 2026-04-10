@@ -50,6 +50,22 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     sets.push("activity_type = ?");
     values.push(body.activity_type);
   }
+  if ("start_time" in body) {
+    sets.push("start_time = ?");
+    values.push(body.start_time);
+  }
+  if ("end_time" in body) {
+    sets.push("end_time = ?");
+    values.push(body.end_time);
+  }
+  if ("shift_type" in body) {
+    sets.push("shift_type = ?");
+    values.push(body.shift_type);
+  }
+  if ("needs_swim_support" in body) {
+    sets.push("needs_swim_support = ?");
+    values.push(body.needs_swim_support ? 1 : 0);
+  }
 
   values.push(parseInt(id));
   db.prepare(`UPDATE shift SET ${sets.join(", ")} WHERE id = ?`).run(...values);

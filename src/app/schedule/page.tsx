@@ -6,12 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import {
   ChevronLeft, ChevronRight, Wand2, Download, Printer, Plus,
-  AlertTriangle, UserX, FileText, UserMinus, Calendar,
+  AlertTriangle, UserX, FileText, UserMinus, Calendar, UserCog,
 } from "lucide-react";
 import { ErrorBanner } from "@/components/ui/error-banner";
 import { ShiftCard } from "@/components/schedule/shift-card";
 import { CandidatePanel } from "@/components/schedule/candidate-panel";
 import { AddShiftForm } from "@/components/schedule/add-shift-form";
+import { StaffOutForm } from "@/components/schedule/staff-out-form";
 
 export default function SchedulePage() {
   const [weekOffset, setWeekOffset] = useState(0);
@@ -31,6 +32,8 @@ export default function SchedulePage() {
   const [draggingShiftId, setDraggingShiftId] = useState<number | null>(null);
   const [dropHighlight, setDropHighlight] = useState<number | "unassign" | null>(null);
   const [showAbsencePanel, setShowAbsencePanel] = useState(false);
+  const [showStaffOut, setShowStaffOut] = useState(false);
+  const [autoAssigningDay, setAutoAssigningDay] = useState<string | null>(null);
   const { mutate: mutateAbsences } = useAbsences(weekStart, weekEnd);
   const { toast } = useToast();
 
@@ -79,6 +82,25 @@ export default function SchedulePage() {
       toast(`Assigned ${result.assigned} shifts, ${result.failed} could not be filled`, "warning");
     } else {
       toast(`All ${result.assigned} open shifts assigned`);
+    }
+  }
+
+  async function handleAutoAssignDay(date: string) {
+    setAutoAssigningDay(date);
+    const res = await fetch("/api/schedule/auto-assign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ weekStart: date, weekEnd: date }),
+    });
+    const result = await res.json();
+    refresh();
+    setAutoAssigningDay(null);
+    if (result.total === 0) {
+      toast("No open shifts on this day");
+    } else if (result.failed > 0) {
+      toast(`${result.assigned} assigned, ${result.failed} could not be filled`, "warning");
+    } else {
+      toast(`All ${result.assigned} open shift(s) assigned`);
     }
   }
 
@@ -175,6 +197,9 @@ export default function SchedulePage() {
           <button onClick={() => setShowAbsencePanel(p => !p)} className={`flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm ${showAbsencePanel ? "bg-orange-600 text-white" : "border hover:bg-gray-50"}`}>
             <UserMinus size={14} /> <span className="hidden sm:inline">{showAbsencePanel ? "Done" : "Absences"}</span>
           </button>
+          <button onClick={() => setShowStaffOut(true)} className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 border rounded-lg text-xs sm:text-sm hover:bg-gray-50 text-red-600 border-red-200 hover:border-red-300">
+            <UserCog size={14} /> <span className="hidden sm:inline">Staff OUT</span>
+          </button>
         </div>
       </div>
 
@@ -216,9 +241,19 @@ export default function SchedulePage() {
                     <div className="text-xs font-semibold text-gray-900">{day.dayName}</div>
                     <div className="text-[10px] text-gray-400">{day.date}</div>
                   </div>
-                  <button onClick={() => setShowAddShift(day.date)} className="text-blue-500 hover:text-blue-700 p-1 shrink-0" title="Add shift">
-                    <Plus size={14} />
-                  </button>
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    <button
+                      onClick={() => handleAutoAssignDay(day.date)}
+                      disabled={autoAssigningDay === day.date}
+                      className={`p-1 rounded ${autoAssigningDay === day.date ? "text-purple-400 animate-pulse" : "text-purple-400 hover:text-purple-600"}`}
+                      title="Auto-assign open shifts for this day"
+                    >
+                      <Wand2 size={13} />
+                    </button>
+                    <button onClick={() => setShowAddShift(day.date)} className="text-blue-500 hover:text-blue-700 p-1" title="Add shift">
+                      <Plus size={14} />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Absence toggles */}
@@ -318,6 +353,7 @@ export default function SchedulePage() {
 
       <CandidatePanel shiftId={selectedShiftId} onClose={() => setSelectedShiftId(null)} onAssign={refresh} />
       {showAddShift && <AddShiftForm date={showAddShift} onClose={() => setShowAddShift(null)} onCreated={refresh} />}
+      {showStaffOut && <StaffOutForm weekStart={weekStart} weekEnd={weekEnd} onClose={() => setShowStaffOut(false)} onDone={refresh} />}
     </div>
   );
 }

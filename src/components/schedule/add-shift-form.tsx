@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useStudents } from "@/lib/hooks";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
+import { SHORT_DAYS } from "@/lib/utils";
 
 interface AddShiftFormProps {
   date: string;
@@ -10,35 +11,87 @@ interface AddShiftFormProps {
   onCreated: () => void;
 }
 
+/** Given a date string and a day-of-week (0=Sun), return the date for that day in the same week. */
+function getDateForDay(baseDate: string, targetDay: number): string {
+  const d = new Date(baseDate + "T00:00:00");
+  const currentDay = d.getDay();
+  const diff = targetDay - currentDay;
+  const target = new Date(d);
+  target.setDate(d.getDate() + diff);
+  return target.toISOString().split("T")[0];
+}
+
 export function AddShiftForm({ date, onClose, onCreated }: AddShiftFormProps) {
   const { data: students } = useStudents();
   const { toast } = useToast();
   const [error, setError] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  // Multi-day: which additional days to also create this shift for
+  const baseDayOfWeek = new Date(date + "T00:00:00").getDay();
+  const [additionalDays, setAdditionalDays] = useState<number[]>([]);
+
+  function toggleDay(day: number) {
+    setAdditionalDays(prev =>
+      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
+    );
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
+    setCreating(true);
+
     const form = new FormData(e.currentTarget);
-    const res = await fetch("/api/shifts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        student_id: parseInt(form.get("student_id") as string),
-        date,
-        start_time: form.get("start_time"),
-        end_time: form.get("end_time"),
-        shift_type: form.get("shift_type"),
-        activity_type: form.get("activity_type"),
-        needs_swim_support: form.get("needs_swim_support") === "on",
-        notes: form.get("notes") || null,
-      }),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => null);
-      setError(data?.details?.[0]?.message || data?.error || "Failed to create shift");
+    const shiftData = {
+      student_id: parseInt(form.get("student_id") as string),
+      start_time: form.get("start_time"),
+      end_time: form.get("end_time"),
+      shift_type: form.get("shift_type"),
+      activity_type: form.get("activity_type"),
+      needs_swim_support: form.get("needs_swim_support") === "on",
+      notes: form.get("notes") || null,
+    };
+
+    // All dates to create shifts for: the base date + any additional days
+    const dates = [date, ...additionalDays.map(day => getDateForDay(date, day))];
+    // Deduplicate (in case the base day was also toggled)
+    const uniqueDates = [...new Set(dates)];
+
+    let created = 0;
+    let lastError = "";
+
+    for (const d of uniqueDates) {
+      const res = await fetch("/api/shifts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...shiftData, date: d }),
+      });
+      if (res.ok) {
+        created++;
+      } else {
+        const data = await res.json().catch(() => null);
+        lastError = data?.details?.[0]?.message || data?.error || "Failed to create shift";
+      }
+    }
+
+    setCreating(false);
+
+    if (created === 0) {
+      setError(lastError || "Failed to create shift");
       return;
     }
-    toast("Shift created");
+
+    if (created === 1) {
+      toast("Shift created");
+    } else {
+      toast(`${created} shifts created across ${created} day${created > 1 ? "s" : ""}`);
+    }
+
+    if (lastError && created < uniqueDates.length) {
+      toast(`${uniqueDates.length - created} shift(s) failed: ${lastError}`, "warning");
+    }
+
     onCreated();
     onClose();
   }
@@ -102,9 +155,45 @@ export function AddShiftForm({ date, onClose, onCreated }: AddShiftFormProps) {
           <input name="notes" className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="See Kaitlin, In @10:30..." />
         </div>
 
+        {/* Multi-day selector */}
+        <div className="border rounded-lg p-3 bg-gray-50">
+          <label className="block text-xs font-medium text-gray-600 mb-2">Also create for other days this week</label>
+          <div className="flex gap-1.5 flex-wrap">
+            {[1, 2, 3, 4, 5].map(day => {
+              const isBase = day === baseDayOfWeek;
+              const isSelected = additionalDays.includes(day);
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  disabled={isBase}
+                  onClick={() => toggleDay(day)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    isBase
+                      ? "bg-blue-600 text-white cursor-default"
+                      : isSelected
+                      ? "bg-blue-100 text-blue-700 border border-blue-300"
+                      : "bg-white border border-gray-200 text-gray-500 hover:border-blue-300"
+                  }`}
+                >
+                  {SHORT_DAYS[day]}
+                  {isBase && " (current)"}
+                </button>
+              );
+            })}
+          </div>
+          {additionalDays.length > 0 && (
+            <div className="mt-1.5 text-[11px] text-gray-500">
+              Will create {additionalDays.length + 1} shifts total ({[baseDayOfWeek, ...additionalDays].sort().map(d => SHORT_DAYS[d]).join(", ")})
+            </div>
+          )}
+        </div>
+
         <div className="flex justify-end gap-2 pt-1">
           <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Cancel</button>
-          <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Create Shift</button>
+          <button type="submit" disabled={creating} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
+            {creating ? "Creating..." : additionalDays.length > 0 ? `Create ${additionalDays.length + 1} Shifts` : "Create Shift"}
+          </button>
         </div>
       </form>
     </Modal>
