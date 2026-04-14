@@ -90,11 +90,11 @@ export async function GET(req: NextRequest) {
     const overnightCount = shifts.filter(s => s.shift_type === "overnight").length;
 
     let riskScore = 0;
-    if (totalHours > 40) riskScore += 3; else if (totalHours > 30) riskScore += 1;
-    if (maxConsecutive >= 5) riskScore += 3; else if (maxConsecutive >= 4) riskScore += 2; else if (maxConsecutive >= 3) riskScore += 1;
+    if (totalHours > 50) riskScore += 3; else if (totalHours > 42) riskScore += 1;
+    if (maxConsecutive >= 7) riskScore += 3; else if (maxConsecutive >= 6) riskScore += 2; else if (maxConsecutive >= 5) riskScore += 1;
     if ((topStudent?.[1] || 0) >= 4) riskScore += 2; else if ((topStudent?.[1] || 0) >= 3) riskScore += 1;
     if (overnightCount >= 3) riskScore += 2; else if (overnightCount >= 2) riskScore += 1;
-    if (shifts.length > 8) riskScore += 2; else if (shifts.length > 6) riskScore += 1;
+    if (shifts.length > 10) riskScore += 2; else if (shifts.length > 7) riskScore += 1;
 
     return {
       name: data.name,
@@ -238,7 +238,7 @@ export async function GET(req: NextRequest) {
   // Risk factors legend
   doc.y = y + 16;
   doc.fillColor("#9ca3af").fontSize(7).font("Helvetica")
-    .text("Risk factors: Weekly hours (>30h/40h), consecutive days (3/4/5+), same-student repetition (3x/4x+), overnight frequency (2/3+), total shifts (>6/8)", 36, doc.y, { width: pageW });
+    .text("Risk factors: Weekly hours (>42h/50h), consecutive days (5/6/7+ — 5 days is normal), same-student repetition (3x/4x+), overnight frequency (2/3+), total shifts (>7/10)", 36, doc.y, { width: pageW });
 
   doc.end();
   const pdfBuffer = await pdfReady;

@@ -221,7 +221,7 @@ export default function ReportsPage() {
                 </table>
               </div>
               <div className="mt-3 text-[11px] text-gray-400 space-y-0.5">
-                <p>Risk factors: high hours (&gt;30/40h), consecutive days (&ge;3/4/5), same-student repetition (&ge;3/4), overnight frequency (&ge;2/3), high shift count (&gt;6/8)</p>
+                <p>Risk factors: high hours (&gt;42/50h), consecutive days (&ge;5/6/7 — 5-day weeks are normal), same-student repetition (&ge;3/4), overnight frequency (&ge;2/3), high shift count (&gt;7/10)</p>
               </div>
             </div>
           )}

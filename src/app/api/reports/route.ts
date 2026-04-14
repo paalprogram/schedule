@@ -163,19 +163,19 @@ export async function GET(req: NextRequest) {
     // Overnight count
     const overnightCount = shifts.filter(s => s.shift_type === "overnight").length;
 
-    // Risk score (higher = more burnout risk)
+    // Risk score — calibrated for a 5-day/week staff norm
     let riskScore = 0;
-    if (totalHours > 40) riskScore += 3;
-    else if (totalHours > 30) riskScore += 1;
-    if (maxConsecutive >= 5) riskScore += 3;
-    else if (maxConsecutive >= 4) riskScore += 2;
-    else if (maxConsecutive >= 3) riskScore += 1;
+    if (totalHours > 50) riskScore += 3;
+    else if (totalHours > 42) riskScore += 1;
+    if (maxConsecutive >= 7) riskScore += 3;
+    else if (maxConsecutive >= 6) riskScore += 2;
+    else if (maxConsecutive >= 5) riskScore += 1;  // 5 is normal, only mild flag
     if (maxSameStudent >= 4) riskScore += 2;
     else if (maxSameStudent >= 3) riskScore += 1;
     if (overnightCount >= 3) riskScore += 2;
     else if (overnightCount >= 2) riskScore += 1;
-    if (shifts.length > 8) riskScore += 2;
-    else if (shifts.length > 6) riskScore += 1;
+    if (shifts.length > 10) riskScore += 2;
+    else if (shifts.length > 7) riskScore += 1;
 
     const riskLevel: "low" | "moderate" | "high" =
       riskScore >= 6 ? "high" : riskScore >= 3 ? "moderate" : "low";
