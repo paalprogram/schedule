@@ -125,6 +125,72 @@ export async function GET(req: NextRequest) {
     absencesByDate[a.date].push(a.student_id);
   }
 
+  // Compute unassigned available staff per day
+  const staffDb = getDb(true);
+  const activeStaff = staffDb.prepare(
+    "SELECT id, name FROM staff WHERE active = 1 ORDER BY name"
+  ).all() as Array<{ id: number; name: string }>;
+
+  const allAvailability = staffDb.prepare(`
+    SELECT staff_id, day_of_week FROM staff_availability
+  `).all() as Array<{ staff_id: number; day_of_week: number }>;
+
+  const allPto = staffDb.prepare(`
+    SELECT staff_id, start_date, end_date FROM staff_pto
+    WHERE start_date <= ? AND end_date >= ?
+  `).all(weekEnd!, weekStart!) as Array<{ staff_id: number; start_date: string; end_date: string }>;
+
+  const allDedicatedRoles = staffDb.prepare(`
+    SELECT staff_id, day_of_week, start_date, end_date FROM staff_dedicated_role
+  `).all() as Array<{ staff_id: number; day_of_week: number | null; start_date: string | null; end_date: string | null }>;
+
+  staffDb.close();
+
+  // Build lookup: staffId -> Set of available day_of_week values
+  const availByStaff = new Map<number, Set<number>>();
+  for (const a of allAvailability) {
+    if (!availByStaff.has(a.staff_id)) availByStaff.set(a.staff_id, new Set());
+    availByStaff.get(a.staff_id)!.add(a.day_of_week);
+  }
+
+  // Build assigned staff set per date (both primary and second)
+  const assignedByDate = new Map<string, Set<number>>();
+  for (const s of shifts as Array<Record<string, unknown>>) {
+    const date = s.date as string;
+    if (!assignedByDate.has(date)) assignedByDate.set(date, new Set());
+    const set = assignedByDate.get(date)!;
+    if (s.assigned_staff_id) set.add(s.assigned_staff_id as number);
+    if (s.second_staff_id) set.add(s.second_staff_id as number);
+  }
+
+  const unassignedByDate: Record<string, Array<{ id: number; name: string }>> = {};
+  for (const date of dateSet) {
+    const dayOfWeek = new Date(date + "T00:00:00").getDay();
+    const assignedSet = assignedByDate.get(date) || new Set();
+
+    unassignedByDate[date] = activeStaff.filter(s => {
+      // Must have availability for this day
+      const avail = availByStaff.get(s.id);
+      if (!avail || !avail.has(dayOfWeek)) return false;
+
+      // Must not be on PTO
+      if (allPto.some(p => p.staff_id === s.id && p.start_date <= date && p.end_date >= date)) return false;
+
+      // Must not have a dedicated role on this day
+      if (allDedicatedRoles.some(dr =>
+        dr.staff_id === s.id &&
+        (dr.day_of_week === null || dr.day_of_week === dayOfWeek) &&
+        (dr.start_date === null || dr.start_date <= date) &&
+        (dr.end_date === null || dr.end_date >= date)
+      )) return false;
+
+      // Must not already be assigned to any shift
+      if (assignedSet.has(s.id)) return false;
+
+      return true;
+    }).map(s => ({ id: s.id, name: s.name }));
+  }
+
   return NextResponse.json({
     weekStart,
     weekEnd,
@@ -132,5 +198,6 @@ export async function GET(req: NextRequest) {
     warnings,
     absences: absencesByDate,
     meetings: meetingsByDate,
+    unassignedStaff: unassignedByDate,
   });
 }

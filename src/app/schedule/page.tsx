@@ -338,6 +338,26 @@ export default function SchedulePage() {
                     ))
                   )}
                 </div>
+
+                {/* Unassigned available staff */}
+                {(() => {
+                  const unassigned: Array<{ id: number; name: string }> = schedule?.unassignedStaff?.[day.date] || [];
+                  if (unassigned.length === 0) return null;
+                  return (
+                    <details className="border-t">
+                      <summary className="px-2 py-1.5 text-[10px] font-medium text-green-700 bg-green-50/60 cursor-pointer hover:bg-green-50 select-none">
+                        {unassigned.length} staff available
+                      </summary>
+                      <div className="px-1.5 py-1 bg-green-50/30 flex flex-wrap gap-0.5">
+                        {unassigned.map(s => (
+                          <span key={s.id} className="px-1.5 py-0.5 text-[10px] bg-white border border-green-200 rounded text-green-700">
+                            {s.name}
+                          </span>
+                        ))}
+                      </div>
+                    </details>
+                  );
+                })()}
               </div>
             ))}
           </div>
