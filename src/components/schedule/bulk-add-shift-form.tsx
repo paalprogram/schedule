@@ -81,18 +81,24 @@ export function BulkAddShiftForm({ date, onClose, onCreated }: BulkAddShiftFormP
     let lastError = "";
 
     for (const studentId of selectedStudents) {
+      // Get staffing ratio for this student (2:1 students need 2 shifts per slot)
+      const studentData = activeStudents.find((s: Record<string, unknown>) => s.id === studentId);
+      const ratio = (studentData?.staffing_ratio as number) || 1;
+
       for (const d of uniqueDates) {
-        const res = await fetch("/api/shifts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...shiftData, student_id: studentId, date: d }),
-        });
-        if (res.ok) {
-          created++;
-        } else {
-          failed++;
-          const data = await res.json().catch(() => null);
-          lastError = data?.details?.[0]?.message || data?.error || "Failed to create shift";
+        for (let slot = 0; slot < ratio; slot++) {
+          const res = await fetch("/api/shifts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...shiftData, student_id: studentId, date: d }),
+          });
+          if (res.ok) {
+            created++;
+          } else {
+            failed++;
+            const data = await res.json().catch(() => null);
+            lastError = data?.details?.[0]?.message || data?.error || "Failed to create shift";
+          }
         }
       }
     }
@@ -114,7 +120,16 @@ export function BulkAddShiftForm({ date, onClose, onCreated }: BulkAddShiftFormP
     onClose();
   }
 
-  const totalShifts = selectedStudents.length * (1 + additionalDays.length);
+  // Calculate total shifts accounting for each student's ratio
+  const totalShifts = selectedStudents.reduce((sum, studentId) => {
+    const studentData = activeStudents.find((s: Record<string, unknown>) => s.id === studentId);
+    const ratio = (studentData?.staffing_ratio as number) || 1;
+    return sum + ratio * (1 + additionalDays.length);
+  }, 0);
+  const has2to1 = selectedStudents.some(studentId => {
+    const studentData = activeStudents.find((s: Record<string, unknown>) => s.id === studentId);
+    return ((studentData?.staffing_ratio as number) || 1) > 1;
+  });
   const allSelected = activeStudents.length > 0 && selectedStudents.length === activeStudents.length;
 
   return (
@@ -136,6 +151,7 @@ export function BulkAddShiftForm({ date, onClose, onCreated }: BulkAddShiftFormP
             <div className="flex flex-wrap gap-1.5">
               {activeStudents.map((s: Record<string, unknown>) => {
                 const isSelected = selectedStudents.includes(s.id as number);
+                const sRatio = (s.staffing_ratio as number) || 1;
                 return (
                   <button
                     key={s.id as number}
@@ -148,6 +164,7 @@ export function BulkAddShiftForm({ date, onClose, onCreated }: BulkAddShiftFormP
                     }`}
                   >
                     {s.name as string}
+                    {sRatio > 1 && <span className={`ml-1 ${isSelected ? "text-blue-200" : "text-amber-500"}`}>({sRatio}:1)</span>}
                   </button>
                 );
               })}
@@ -229,7 +246,7 @@ export function BulkAddShiftForm({ date, onClose, onCreated }: BulkAddShiftFormP
           {(selectedStudents.length > 0 || additionalDays.length > 0) && (
             <div className="mt-1.5 text-[11px] text-gray-500">
               Will create {totalShifts} shift{totalShifts !== 1 ? "s" : ""} total
-              ({selectedStudents.length} student{selectedStudents.length !== 1 ? "s" : ""} &times; {1 + additionalDays.length} day{additionalDays.length > 0 ? "s" : ""})
+              ({selectedStudents.length} student{selectedStudents.length !== 1 ? "s" : ""} &times; {1 + additionalDays.length} day{additionalDays.length > 0 ? "s" : ""}{has2to1 ? ", incl. extra slots for 2:1 students" : ""})
             </div>
           )}
         </div>
