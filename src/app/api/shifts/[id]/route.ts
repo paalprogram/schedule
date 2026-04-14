@@ -6,10 +6,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params;
   const db = getDb(true);
   const shift = db.prepare(`
-    SELECT s.*, st.name as student_name, stf.name as staff_name
+    SELECT s.*, st.name as student_name, stf.name as staff_name, stf2.name as second_staff_name,
+           st.staffing_ratio
     FROM shift s
     JOIN student st ON s.student_id = st.id
     LEFT JOIN staff stf ON s.assigned_staff_id = stf.id
+    LEFT JOIN staff stf2 ON s.second_staff_id = stf2.id
     WHERE s.id = ?
   `).get(id);
   db.close();
@@ -33,6 +35,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if ("assigned_staff_id" in body) {
     sets.push("assigned_staff_id = ?");
     values.push(body.assigned_staff_id ?? null);
+  }
+  if ("second_staff_id" in body) {
+    sets.push("second_staff_id = ?");
+    values.push(body.second_staff_id ?? null);
   }
   if ("status" in body || "assigned_staff_id" in body) {
     sets.push("status = ?");
@@ -71,10 +77,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   db.prepare(`UPDATE shift SET ${sets.join(", ")} WHERE id = ?`).run(...values);
 
   const shift = db.prepare(`
-    SELECT s.*, st.name as student_name, stf.name as staff_name
+    SELECT s.*, st.name as student_name, stf.name as staff_name, stf2.name as second_staff_name,
+           st.staffing_ratio
     FROM shift s
     JOIN student st ON s.student_id = st.id
     LEFT JOIN staff stf ON s.assigned_staff_id = stf.id
+    LEFT JOIN staff stf2 ON s.second_staff_id = stf2.id
     WHERE s.id = ?
   `).get(id);
 

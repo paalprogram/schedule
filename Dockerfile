@@ -30,6 +30,9 @@ ENV DB_PATH=/data/schedule.db
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
+# sqlite3 CLI for daily backup script
+RUN apt-get update && apt-get install -y sqlite3 && rm -rf /var/lib/apt/lists/*
+
 # Copy standalone server + static assets
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static

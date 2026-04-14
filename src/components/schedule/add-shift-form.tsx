@@ -62,26 +62,20 @@ export function AddShiftForm({ date, onClose, onCreated }: AddShiftFormProps) {
     // Deduplicate (in case the base day was also toggled)
     const uniqueDates = [...new Set(dates)];
 
-    // Get staffing ratio for this student (2:1 students need 2 shifts per slot)
-    const selectedStudent = students?.find((s: Record<string, unknown>) => s.id === shiftData.student_id);
-    const ratio = (selectedStudent?.staffing_ratio as number) || 1;
-
     let created = 0;
     let lastError = "";
 
     for (const d of uniqueDates) {
-      for (let slot = 0; slot < ratio; slot++) {
-        const res = await fetch("/api/shifts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...shiftData, date: d }),
-        });
-        if (res.ok) {
-          created++;
-        } else {
-          const data = await res.json().catch(() => null);
-          lastError = data?.details?.[0]?.message || data?.error || "Failed to create shift";
-        }
+      const res = await fetch("/api/shifts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...shiftData, date: d }),
+      });
+      if (res.ok) {
+        created++;
+      } else {
+        const data = await res.json().catch(() => null);
+        lastError = data?.details?.[0]?.message || data?.error || "Failed to create shift";
       }
     }
 
@@ -92,17 +86,14 @@ export function AddShiftForm({ date, onClose, onCreated }: AddShiftFormProps) {
       return;
     }
 
-    const expectedTotal = uniqueDates.length * ratio;
     if (created === 1) {
       toast("Shift created");
-    } else if (ratio > 1) {
-      toast(`${created} shifts created (${ratio}:1 ratio × ${uniqueDates.length} day${uniqueDates.length > 1 ? "s" : ""})`);
     } else {
-      toast(`${created} shifts created across ${uniqueDates.length} day${uniqueDates.length > 1 ? "s" : ""}`);
+      toast(`${created} shifts created across ${created} day${created > 1 ? "s" : ""}`);
     }
 
-    if (lastError && created < expectedTotal) {
-      toast(`${expectedTotal - created} shift(s) failed: ${lastError}`, "warning");
+    if (lastError && created < uniqueDates.length) {
+      toast(`${uniqueDates.length - created} shift(s) failed: ${lastError}`, "warning");
     }
 
     onCreated();
@@ -129,7 +120,7 @@ export function AddShiftForm({ date, onClose, onCreated }: AddShiftFormProps) {
           </select>
           {ratio > 1 && (
             <div className="mt-1 text-xs text-amber-600 font-medium">
-              {ratio}:1 ratio — will create {ratio} shifts per day (one per staff slot)
+              {ratio}:1 ratio — this shift needs {ratio} staff members
             </div>
           )}
         </div>
@@ -205,11 +196,9 @@ export function AddShiftForm({ date, onClose, onCreated }: AddShiftFormProps) {
               );
             })}
           </div>
-          {(additionalDays.length > 0 || ratio > 1) && (
+          {additionalDays.length > 0 && (
             <div className="mt-1.5 text-[11px] text-gray-500">
-              Will create {(additionalDays.length + 1) * ratio} shift{(additionalDays.length + 1) * ratio > 1 ? "s" : ""} total
-              {ratio > 1 && ` (${ratio} staff slots × ${additionalDays.length + 1} day${additionalDays.length > 0 ? "s" : ""})`}
-              {ratio === 1 && ` (${[baseDayOfWeek, ...additionalDays].sort().map(d => SHORT_DAYS[d]).join(", ")})`}
+              Will create {additionalDays.length + 1} shifts total ({[baseDayOfWeek, ...additionalDays].sort().map(d => SHORT_DAYS[d]).join(", ")})
             </div>
           )}
         </div>
@@ -217,10 +206,7 @@ export function AddShiftForm({ date, onClose, onCreated }: AddShiftFormProps) {
         <div className="flex justify-end gap-2 pt-1">
           <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Cancel</button>
           <button type="submit" disabled={creating} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
-            {creating ? "Creating..." : (() => {
-              const total = (additionalDays.length + 1) * ratio;
-              return total > 1 ? `Create ${total} Shifts` : "Create Shift";
-            })()}
+            {creating ? "Creating..." : additionalDays.length > 0 ? `Create ${additionalDays.length + 1} Shifts` : "Create Shift"}
           </button>
         </div>
       </form>

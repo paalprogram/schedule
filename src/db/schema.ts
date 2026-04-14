@@ -55,6 +55,7 @@ export const shift = sqliteTable("shift", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   studentId: integer("student_id").notNull().references(() => student.id),
   assignedStaffId: integer("assigned_staff_id").references(() => staff.id),
+  secondStaffId: integer("second_staff_id").references(() => staff.id),
   date: text("date").notNull(), // "2026-04-10"
   startTime: text("start_time").notNull(),
   endTime: text("end_time").notNull(),

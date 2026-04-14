@@ -26,10 +26,10 @@ export function getStaffShiftsForWeek(staffId: number, weekStart: string, weekEn
   const db = getDb();
   const shifts = db.prepare(`
     SELECT * FROM shift
-    WHERE assigned_staff_id = ?
+    WHERE (assigned_staff_id = ? OR second_staff_id = ?)
     AND date >= ? AND date <= ?
     AND status IN ('scheduled', 'covered')
-  `).all(staffId, weekStart, weekEnd);
+  `).all(staffId, staffId, weekStart, weekEnd);
   db.close();
   return shifts as Array<{
     id: number; student_id: number; date: string;
@@ -45,10 +45,10 @@ export function getStaffStudentCountForWeek(
   const db = getDb();
   const result = db.prepare(`
     SELECT COUNT(*) as count FROM shift
-    WHERE assigned_staff_id = ? AND student_id = ?
+    WHERE (assigned_staff_id = ? OR second_staff_id = ?) AND student_id = ?
     AND date >= ? AND date <= ?
     AND status IN ('scheduled', 'covered')
-  `).get(staffId, studentId, weekStart, weekEnd) as { count: number };
+  `).get(staffId, staffId, studentId, weekStart, weekEnd) as { count: number };
   db.close();
   return result.count;
 }
@@ -57,11 +57,11 @@ export function getStaffSwimCountForWeek(staffId: number, weekStart: string, wee
   const db = getDb();
   const result = db.prepare(`
     SELECT COUNT(*) as count FROM shift
-    WHERE assigned_staff_id = ?
+    WHERE (assigned_staff_id = ? OR second_staff_id = ?)
     AND needs_swim_support = 1
     AND date >= ? AND date <= ?
     AND status IN ('scheduled', 'covered')
-  `).get(staffId, weekStart, weekEnd) as { count: number };
+  `).get(staffId, staffId, weekStart, weekEnd) as { count: number };
   db.close();
   return result.count;
 }
@@ -154,15 +154,13 @@ export function hasOverlappingShift(
 
   const db = getDb();
   const placeholders = datesToCheck.map(() => '?').join(',');
-  const params: (string | number)[] = [staffId, ...datesToCheck];
-  if (excludeShiftId) params.push(excludeShiftId);
 
   const shifts = db.prepare(`
     SELECT id, date, start_time, end_time FROM shift
-    WHERE assigned_staff_id = ? AND date IN (${placeholders})
+    WHERE (assigned_staff_id = ? OR second_staff_id = ?) AND date IN (${placeholders})
     AND status IN ('scheduled', 'covered')
     ${excludeShiftId ? 'AND id != ?' : ''}
-  `).all(...params) as Array<{
+  `).all(staffId, staffId, ...datesToCheck, ...(excludeShiftId ? [excludeShiftId] : [])) as Array<{
     id: number; date: string; start_time: string; end_time: string;
   }>;
   db.close();
@@ -209,17 +207,15 @@ export function getOverlappingAssignments(
 
   const db = getDb();
   const placeholders = datesToCheck.map(() => '?').join(',');
-  const params: (string | number)[] = [staffId, ...datesToCheck];
-  if (excludeShiftId) params.push(excludeShiftId);
 
   const shifts = db.prepare(`
     SELECT s.id, s.date, s.start_time, s.end_time, s.student_id, st.name as student_name
     FROM shift s
     JOIN student st ON s.student_id = st.id
-    WHERE s.assigned_staff_id = ? AND s.date IN (${placeholders})
+    WHERE (s.assigned_staff_id = ? OR s.second_staff_id = ?) AND s.date IN (${placeholders})
     AND s.status IN ('scheduled', 'covered')
     ${excludeShiftId ? 'AND s.id != ?' : ''}
-  `).all(...params) as Array<{
+  `).all(staffId, staffId, ...datesToCheck, ...(excludeShiftId ? [excludeShiftId] : [])) as Array<{
     id: number; date: string; start_time: string; end_time: string;
     student_id: number; student_name: string;
   }>;
@@ -389,6 +385,30 @@ export function detectWeekWarnings(weekStart: string, weekEnd: string): Schedule
       type: "uncovered",
       severity: "error",
       message: `${s.student_name} has uncovered shift on ${s.date} at ${s.start_time}`,
+      shiftId: s.id,
+      studentId: s.student_id,
+    });
+  }
+
+  // Check 2:1 students missing second staff
+  const needsSecondStaff = db.prepare(`
+    SELECT s.id, s.date, s.start_time, st.name as student_name, st.staffing_ratio, s.student_id
+    FROM shift s
+    JOIN student st ON s.student_id = st.id
+    WHERE s.date >= ? AND s.date <= ?
+    AND s.status IN ('scheduled', 'covered')
+    AND s.assigned_staff_id IS NOT NULL
+    AND s.second_staff_id IS NULL
+    AND st.staffing_ratio >= 2
+  `).all(weekStart, weekEnd) as Array<{
+    id: number; date: string; start_time: string; student_name: string; staffing_ratio: number; student_id: number;
+  }>;
+
+  for (const s of needsSecondStaff) {
+    warnings.push({
+      type: "missing_second_staff",
+      severity: "warning",
+      message: `${s.student_name} needs 2nd staff on ${s.date} at ${s.start_time} (${s.staffing_ratio}:1)`,
       shiftId: s.id,
       studentId: s.student_id,
     });

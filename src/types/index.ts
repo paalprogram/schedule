@@ -206,7 +206,7 @@ export interface WeekSchedule {
 }
 
 export interface ScheduleWarning {
-  type: "over_twice" | "untrained" | "overlap" | "pto_conflict" | "swim_heavy" | "overnight_rest" | "uncovered" | "student_absent" | "dedicated_role_conflict" | "onboarding_sequence_broken" | "meeting_conflict";
+  type: "over_twice" | "untrained" | "overlap" | "pto_conflict" | "swim_heavy" | "overnight_rest" | "uncovered" | "student_absent" | "dedicated_role_conflict" | "onboarding_sequence_broken" | "meeting_conflict" | "missing_second_staff";
   severity: "error" | "warning" | "info";
   message: string;
   shiftId?: number;

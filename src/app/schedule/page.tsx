@@ -42,17 +42,30 @@ export default function SchedulePage() {
   const refresh = useCallback(() => mutate(), [mutate]);
 
   async function handleDrop(staffId: number | null, shiftId: number) {
+    // Check if this shift already has a primary staff and needs a second (2:1)
+    const shiftData = schedule?.days?.flatMap((d: { shifts: Array<Record<string, unknown>> }) => d.shifts).find((s: Record<string, unknown>) => s.id === shiftId);
+    const isAssigningSecond = shiftData && shiftData.assigned_staff_id && !shiftData.second_staff_id && ((shiftData.staffing_ratio as number) || 1) >= 2 && staffId;
+
+    const body: Record<string, unknown> = isAssigningSecond
+      ? { second_staff_id: staffId }
+      : { assigned_staff_id: staffId, status: staffId ? "scheduled" : "open" };
+
+    // If unassigning, clear both staff
+    if (!staffId) {
+      body.second_staff_id = null;
+    }
+
     await fetch(`/api/shifts/${shiftId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ assigned_staff_id: staffId, status: staffId ? "scheduled" : "open" }),
+      body: JSON.stringify(body),
     });
     setDraggingShiftId(null);
     setDropHighlight(null);
     refresh();
     if (staffId) {
       const name = allStaff?.find((s: Record<string, unknown>) => s.id === staffId)?.name;
-      toast(`Shift reassigned to ${name || "staff"}`);
+      toast(isAssigningSecond ? `2nd staff assigned: ${name || "staff"}` : `Shift reassigned to ${name || "staff"}`);
     } else {
       toast("Staff unassigned from shift", "warning");
     }

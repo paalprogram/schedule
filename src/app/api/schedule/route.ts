@@ -14,11 +14,14 @@ export async function GET(req: NextRequest) {
   const db = getDb(true);
   const shifts = db.prepare(`
     SELECT s.*, st.name as student_name, stf.name as staff_name,
+           stf2.name as second_staff_name,
            st.group_id as student_group_id,
+           st.staffing_ratio,
            sg.name as group_name
     FROM shift s
     JOIN student st ON s.student_id = st.id
     LEFT JOIN staff stf ON s.assigned_staff_id = stf.id
+    LEFT JOIN staff stf2 ON s.second_staff_id = stf2.id
     LEFT JOIN student_group sg ON st.group_id = sg.id
     WHERE s.date >= ? AND s.date <= ?
     ORDER BY s.date, s.start_time, st.name

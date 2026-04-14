@@ -12,10 +12,11 @@ export async function GET(req: NextRequest) {
   const db = getDb(true);
 
   let query = `
-    SELECT s.*, st.name as student_name, stf.name as staff_name
+    SELECT s.*, st.name as student_name, stf.name as staff_name, stf2.name as second_staff_name
     FROM shift s
     JOIN student st ON s.student_id = st.id
     LEFT JOIN staff stf ON s.assigned_staff_id = stf.id
+    LEFT JOIN staff stf2 ON s.second_staff_id = stf2.id
     WHERE 1=1
   `;
   const params: (string | number)[] = [];
@@ -48,11 +49,12 @@ export async function POST(req: NextRequest) {
   const db = getDb();
 
   const result = db.prepare(`
-    INSERT INTO shift (student_id, assigned_staff_id, date, start_time, end_time, shift_type, activity_type, needs_swim_support, status, notes)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO shift (student_id, assigned_staff_id, second_staff_id, date, start_time, end_time, shift_type, activity_type, needs_swim_support, status, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     body.student_id,
     body.assigned_staff_id || null,
+    body.second_staff_id || null,
     body.date,
     body.start_time,
     body.end_time,
@@ -64,10 +66,11 @@ export async function POST(req: NextRequest) {
   );
 
   const shift = db.prepare(`
-    SELECT s.*, st.name as student_name, stf.name as staff_name
+    SELECT s.*, st.name as student_name, stf.name as staff_name, stf2.name as second_staff_name
     FROM shift s
     JOIN student st ON s.student_id = st.id
     LEFT JOIN staff stf ON s.assigned_staff_id = stf.id
+    LEFT JOIN staff stf2 ON s.second_staff_id = stf2.id
     WHERE s.id = ?
   `).get(result.lastInsertRowid);
 

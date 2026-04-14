@@ -211,5 +211,12 @@ try {
   // Column already exists
 }
 
+// Add second_staff_id to shift for 2:1 staffing ratio support
+try {
+  db.exec(`ALTER TABLE shift ADD COLUMN second_staff_id INTEGER REFERENCES staff(id)`);
+} catch {
+  // Column already exists
+}
+
 console.log("Database migrated successfully at", dbPath);
 db.close();

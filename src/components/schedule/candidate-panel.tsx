@@ -53,7 +53,7 @@ export function CandidatePanel({ shiftId, onClose, onAssign }: CandidatePanelPro
     }
   }, [shiftId]);
 
-  async function handleAssign(staffId: number, candidate: CandidateScore) {
+  async function handleAssign(staffId: number, candidate: CandidateScore, asSecond?: boolean) {
     const cascadeWarnings = candidate.warnings.filter(w => w.startsWith("Assigning will uncover"));
     const isUntrained = candidate.warnings.some(w => w.includes("Not trained"));
 
@@ -65,7 +65,9 @@ export function CandidatePanel({ shiftId, onClose, onAssign }: CandidatePanelPro
     }
 
     setAssigning(staffId);
-    const body: Record<string, unknown> = { assigned_staff_id: staffId, status: "scheduled" };
+    const body: Record<string, unknown> = asSecond
+      ? { second_staff_id: staffId }
+      : { assigned_staff_id: staffId, status: "scheduled" };
     if (candidate.warnings.length > 0 && overrideNote) body.override_note = overrideNote;
     await fetch(`/api/shifts/${shiftId}`, {
       method: "PUT",
@@ -74,7 +76,7 @@ export function CandidatePanel({ shiftId, onClose, onAssign }: CandidatePanelPro
     });
     setAssigning(null);
     setOverrideNote("");
-    toast("Staff assigned to shift");
+    toast(asSecond ? "2nd staff assigned to shift" : "Staff assigned to shift");
     onAssign();
     onClose();
   }
@@ -83,9 +85,20 @@ export function CandidatePanel({ shiftId, onClose, onAssign }: CandidatePanelPro
     await fetch(`/api/shifts/${shiftId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ assigned_staff_id: null, status: "open" }),
+      body: JSON.stringify({ assigned_staff_id: null, second_staff_id: null, status: "open" }),
     });
     toast("Staff unassigned from shift", "warning");
+    onAssign();
+    onClose();
+  }
+
+  async function handleUnassignSecond() {
+    await fetch(`/api/shifts/${shiftId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ second_staff_id: null }),
+    });
+    toast("2nd staff unassigned from shift", "warning");
     onAssign();
     onClose();
   }
@@ -180,11 +193,24 @@ export function CandidatePanel({ shiftId, onClose, onAssign }: CandidatePanelPro
               {shift.shift_type === "overnight" && <span className="ml-1 text-indigo-500">&middot; Overnight</span>}
             </div>
             {!!(shift.assigned_staff_id) && (
-              <div className="mt-2 flex items-center justify-between text-xs">
-                <span>Assigned: <strong>{shift.staff_name as string}</strong></span>
-                <button onClick={handleUnassign} className="text-red-500 hover:text-red-700 flex items-center gap-0.5 font-medium">
-                  <X size={12} /> Unassign
-                </button>
+              <div className="mt-2 space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span>Staff 1: <strong>{shift.staff_name as string}</strong></span>
+                  <button onClick={handleUnassign} className="text-red-500 hover:text-red-700 flex items-center gap-0.5 font-medium">
+                    <X size={12} /> Unassign
+                  </button>
+                </div>
+                {!!(shift.second_staff_name) && (
+                  <div className="flex items-center justify-between text-xs">
+                    <span>Staff 2: <strong>{shift.second_staff_name as string}</strong></span>
+                    <button onClick={handleUnassignSecond} className="text-red-500 hover:text-red-700 flex items-center gap-0.5 font-medium">
+                      <X size={12} /> Unassign
+                    </button>
+                  </div>
+                )}
+                {(shift.staffing_ratio as number) >= 2 && !shift.second_staff_id && (
+                  <div className="text-xs text-amber-600 font-medium">Needs 2nd staff ({String(shift.staffing_ratio)}:1 ratio)</div>
+                )}
               </div>
             )}
           </div>
@@ -288,11 +314,18 @@ export function CandidatePanel({ shiftId, onClose, onAssign }: CandidatePanelPro
                     "bg-red-100 text-red-700"
                   }`}>{c.totalScore}</span>
                 </div>
-                {!c.excluded && (
-                  <button onClick={() => handleAssign(c.staffId, c)} disabled={assigning === c.staffId} className="flex items-center gap-1 px-2 py-1 bg-blue-600 text-white rounded text-[11px] hover:bg-blue-700 disabled:opacity-50">
-                    <Check size={11} /> Assign
-                  </button>
-                )}
+                {!c.excluded && (() => {
+                  const isAssigningSecond = shift && shift.assigned_staff_id && !shift.second_staff_id && (shift.staffing_ratio as number) >= 2;
+                  return (
+                    <button
+                      onClick={() => handleAssign(c.staffId, c, !!isAssigningSecond)}
+                      disabled={assigning === c.staffId}
+                      className={`flex items-center gap-1 px-2 py-1 text-white rounded text-[11px] disabled:opacity-50 ${isAssigningSecond ? "bg-amber-600 hover:bg-amber-700" : "bg-blue-600 hover:bg-blue-700"}`}
+                    >
+                      <Check size={11} /> {isAssigningSecond ? "Assign 2nd" : "Assign"}
+                    </button>
+                  );
+                })()}
               </div>
               <div className="flex flex-wrap gap-0.5 mb-1">
                 {c.tags.map((tag, i) => {

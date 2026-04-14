@@ -39,6 +39,8 @@ export function ShiftCard({ shift, warnings, onClick, onCallout, onDragStart, on
   const onboardingTotal = shift.onboardingTotalDays as number | null;
   const groupName = shift.group_name as string | null;
   const activity = ACTIVITY_ICONS[activityType];
+  const staffingRatio = (shift.staffing_ratio as number) || 1;
+  const needsSecondStaff = staffingRatio >= 2 && !isOpen && !shift.second_staff_id;
 
   async function handleCallout(e: React.MouseEvent) {
     e.stopPropagation();
@@ -115,6 +117,15 @@ export function ShiftCard({ shift, warnings, onClick, onCallout, onDragStart, on
               <PhoneOff size={11} />
             </button>
           </div>
+          {!!(shift.second_staff_name) && (
+            <div className="flex items-center gap-1 mt-0.5">
+              <span className="text-gray-600 font-medium truncate">{shift.second_staff_name as string}</span>
+              <span className="text-[9px] text-gray-400">2nd</span>
+            </div>
+          )}
+          {needsSecondStaff && (
+            <div className="mt-0.5"><Badge variant="warning">Needs 2nd Staff</Badge></div>
+          )}
           {onboardingDay !== null && (
             <div className="flex items-center gap-0.5 mt-0.5">
               <GraduationCap size={9} className="text-teal-600" />

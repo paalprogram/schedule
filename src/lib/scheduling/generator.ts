@@ -32,14 +32,6 @@ export function generateWeekFromTemplates(weekStartDate: string) {
     activity_type: string; needs_swim_support: number; notes: string | null;
   }>;
 
-  // Build student staffing ratio lookup — group ratio overrides individual ratio
-  const students = db.prepare(`
-    SELECT s.id, s.staffing_ratio, s.group_id, sg.staffing_ratio as group_ratio
-    FROM student s
-    LEFT JOIN student_group sg ON s.group_id = sg.id
-  `).all() as Array<{ id: number; staffing_ratio: number; group_id: number | null; group_ratio: number | null }>;
-  const ratioMap = new Map(students.map(s => [s.id, s.group_ratio || s.staffing_ratio || 1]));
-
   const insertShift = db.prepare(`
     INSERT INTO shift (student_id, assigned_staff_id, date, start_time, end_time, shift_type, activity_type, needs_swim_support, status, notes)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -55,26 +47,22 @@ export function generateWeekFromTemplates(weekStartDate: string) {
     // Skip if student is absent on this date
     if (absenceSet.has(`${template.student_id}:${targetDate}`)) continue;
 
-    // Check how many shifts already exist for this slot
+    // Check if shift already exists for this slot
     const existingCount = (db.prepare(`
       SELECT COUNT(*) as count FROM shift
       WHERE student_id = ? AND date = ? AND start_time = ? AND end_time = ?
     `).get(template.student_id, targetDate, template.start_time, template.end_time) as { count: number }).count;
 
-    // Create enough shifts to reach the staffing ratio
-    const ratio = ratioMap.get(template.student_id) || 1;
-    const slotsNeeded = Math.max(0, ratio - existingCount);
+    if (existingCount > 0) continue;
 
-    for (let slot = 0; slot < slotsNeeded; slot++) {
-      insertShift.run(
-        template.student_id, null, targetDate,
-        template.start_time, template.end_time,
-        template.shift_type, template.activity_type,
-        template.needs_swim_support, "open",
-        template.notes
-      );
-      created++;
-    }
+    insertShift.run(
+      template.student_id, null, targetDate,
+      template.start_time, template.end_time,
+      template.shift_type, template.activity_type,
+      template.needs_swim_support, "open",
+      template.notes
+    );
+    created++;
   }
 
   db.close();
@@ -84,6 +72,15 @@ export function generateWeekFromTemplates(weekStartDate: string) {
 export function autoAssignOpenShifts(weekStart: string, weekEnd: string) {
   const db = getDb();
 
+  // Build student staffing ratio lookup
+  const students = db.prepare(`
+    SELECT s.id, s.staffing_ratio, s.group_id, sg.staffing_ratio as group_ratio
+    FROM student s
+    LEFT JOIN student_group sg ON s.group_id = sg.id
+  `).all() as Array<{ id: number; staffing_ratio: number; group_id: number | null; group_ratio: number | null }>;
+  const ratioMap = new Map(students.map(s => [s.id, s.group_ratio || s.staffing_ratio || 1]));
+
+  // Pass 1: Assign primary staff to shifts with no assigned_staff_id
   const openShifts = db.prepare(`
     SELECT * FROM shift
     WHERE date >= ? AND date <= ?
@@ -125,5 +122,50 @@ export function autoAssignOpenShifts(weekStart: string, weekEnd: string) {
     }
   }
 
-  return { assigned, failed, total: openShifts.length };
+  // Pass 2: Assign second staff for 2:1 students
+  const db2 = getDb();
+  const needsSecondStaff = db2.prepare(`
+    SELECT * FROM shift
+    WHERE date >= ? AND date <= ?
+    AND assigned_staff_id IS NOT NULL
+    AND second_staff_id IS NULL
+    AND status = 'scheduled'
+    ORDER BY needs_swim_support DESC, shift_type DESC, date, start_time
+  `).all(weekStart, weekEnd) as Array<{
+    id: number; student_id: number; assigned_staff_id: number; date: string;
+    start_time: string; end_time: string; shift_type: string;
+    needs_swim_support: number;
+  }>;
+  db2.close();
+
+  for (const shift of needsSecondStaff) {
+    const ratio = ratioMap.get(shift.student_id) || 1;
+    if (ratio < 2) continue;
+
+    const candidates = scoreCandidates({
+      studentId: shift.student_id,
+      date: shift.date,
+      startTime: shift.start_time,
+      endTime: shift.end_time,
+      shiftType: shift.shift_type,
+      needsSwimSupport: !!shift.needs_swim_support,
+      excludeShiftId: shift.id,
+    });
+
+    // Exclude the already-assigned primary staff
+    const best = candidates.find(c => !c.excluded && c.totalScore >= 30 && c.staffId !== shift.assigned_staff_id);
+    if (best) {
+      const writeDb = new Database(getDbPath());
+      writeDb.prepare(`
+        UPDATE shift SET second_staff_id = ?, updated_at = datetime('now')
+        WHERE id = ?
+      `).run(best.staffId, shift.id);
+      writeDb.close();
+      assigned++;
+    } else {
+      failed++;
+    }
+  }
+
+  return { assigned, failed, total: openShifts.length + needsSecondStaff.filter(s => (ratioMap.get(s.student_id) || 1) >= 2).length };
 }
