@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useReports } from "@/lib/hooks";
 import { getWeekBounds } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, Users, Droplets, BarChart3, AlertTriangle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Users, Droplets, BarChart3, AlertTriangle, Flame, Download } from "lucide-react";
 import { ErrorBanner } from "@/components/ui/error-banner";
 
 export default function ReportsPage() {
@@ -18,16 +18,24 @@ export default function ReportsPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Reports & Fairness</h1>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setWeekOffset(w => w - 1)} className="p-1 hover:bg-gray-100 rounded">
-            <ChevronLeft size={20} />
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => window.open(`/api/reports/burnout-pdf?weekStart=${weekStart}&weekEnd=${weekEnd}`, "_blank")}
+            className="flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-sm hover:bg-gray-50 text-gray-600"
+          >
+            <Download size={14} /> Burnout PDF
           </button>
-          <span className="text-sm font-medium text-gray-700 min-w-[180px] text-center">
-            {weekStart} to {weekEnd}
-          </span>
-          <button onClick={() => setWeekOffset(w => w + 1)} className="p-1 hover:bg-gray-100 rounded">
-            <ChevronRight size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setWeekOffset(w => w - 1)} className="p-1 hover:bg-gray-100 rounded">
+              <ChevronLeft size={20} />
+            </button>
+            <span className="text-sm font-medium text-gray-700 min-w-[180px] text-center">
+              {weekStart} to {weekEnd}
+            </span>
+            <button onClick={() => setWeekOffset(w => w + 1)} className="p-1 hover:bg-gray-100 rounded">
+              <ChevronRight size={20} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -153,6 +161,70 @@ export default function ReportsPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Burnout risk */}
+          {(report.burnoutRisks as Array<{
+            staffName: string; totalShifts: number; totalHours: number;
+            daysWorked: number; maxConsecutiveDays: number; overnightCount: number;
+            maxSameStudent: number; topStudentName: string; topStudentCount: number;
+            riskScore: number; riskLevel: string;
+          }>)?.length > 0 && (
+            <div className="bg-white rounded-lg shadow-sm border p-6 lg:col-span-2">
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Flame size={18} className="text-orange-500" /> Burnout Risk Tracker
+              </h2>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 text-gray-600">Staff</th>
+                      <th className="text-right py-2 text-gray-600">Shifts</th>
+                      <th className="text-right py-2 text-gray-600">Hours</th>
+                      <th className="text-right py-2 text-gray-600">Days</th>
+                      <th className="text-right py-2 text-gray-600">Consec.</th>
+                      <th className="text-right py-2 text-gray-600">Overnight</th>
+                      <th className="text-left py-2 text-gray-600 pl-4">Top Student</th>
+                      <th className="text-right py-2 text-gray-600">Risk</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(report.burnoutRisks as Array<{
+                      staffName: string; totalShifts: number; totalHours: number;
+                      daysWorked: number; maxConsecutiveDays: number; overnightCount: number;
+                      topStudentName: string; topStudentCount: number;
+                      riskScore: number; riskLevel: string;
+                    }>)?.map((b, i: number) => (
+                      <tr key={i} className={`border-b last:border-0 ${b.riskLevel === "high" ? "bg-red-50" : b.riskLevel === "moderate" ? "bg-amber-50/50" : ""}`}>
+                        <td className="py-2 font-medium">{b.staffName}</td>
+                        <td className="py-2 text-right">{b.totalShifts}</td>
+                        <td className="py-2 text-right">{b.totalHours}h</td>
+                        <td className="py-2 text-right">{b.daysWorked}</td>
+                        <td className="py-2 text-right">
+                          <Badge variant={b.maxConsecutiveDays >= 5 ? "error" : b.maxConsecutiveDays >= 4 ? "warning" : "default"}>
+                            {b.maxConsecutiveDays}
+                          </Badge>
+                        </td>
+                        <td className="py-2 text-right">
+                          {b.overnightCount > 0 ? <Badge variant={b.overnightCount >= 3 ? "warning" : "info"}>{b.overnightCount}</Badge> : "—"}
+                        </td>
+                        <td className="py-2 pl-4 text-gray-600">
+                          {b.topStudentName ? `${b.topStudentName} (${b.topStudentCount}x)` : "—"}
+                        </td>
+                        <td className="py-2 text-right">
+                          <Badge variant={b.riskLevel === "high" ? "error" : b.riskLevel === "moderate" ? "warning" : "success"}>
+                            {b.riskLevel}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-3 text-[11px] text-gray-400 space-y-0.5">
+                <p>Risk factors: high hours (&gt;30/40h), consecutive days (&ge;3/4/5), same-student repetition (&ge;3/4), overnight frequency (&ge;2/3), high shift count (&gt;6/8)</p>
+              </div>
+            </div>
+          )}
 
           {/* Uncovered shifts */}
           {(report.uncoveredShifts as unknown[])?.length > 0 && (
