@@ -6,13 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import {
   ChevronLeft, ChevronRight, Wand2, Download, Printer, Plus,
-  AlertTriangle, UserX, FileText, UserMinus, Calendar, UserCog, Users,
+  AlertTriangle, UserX, FileText, UserMinus, Calendar, UserCog, Users, Trash2,
 } from "lucide-react";
 import { ErrorBanner } from "@/components/ui/error-banner";
 import { ShiftCard } from "@/components/schedule/shift-card";
 import { CandidatePanel } from "@/components/schedule/candidate-panel";
 import { AddShiftForm } from "@/components/schedule/add-shift-form";
 import { BulkAddShiftForm } from "@/components/schedule/bulk-add-shift-form";
+import { BulkDeleteForm } from "@/components/schedule/bulk-delete-form";
 import { StaffOutForm } from "@/components/schedule/staff-out-form";
 
 export default function SchedulePage() {
@@ -35,6 +36,7 @@ export default function SchedulePage() {
   const [showAbsencePanel, setShowAbsencePanel] = useState(false);
   const [showStaffOut, setShowStaffOut] = useState(false);
   const [showBulkAdd, setShowBulkAdd] = useState<string | null>(null);
+  const [showBulkDelete, setShowBulkDelete] = useState(false);
   const [autoAssigningDay, setAutoAssigningDay] = useState<string | null>(null);
   const { mutate: mutateAbsences } = useAbsences(weekStart, weekEnd);
   const { toast } = useToast();
@@ -206,6 +208,9 @@ export default function SchedulePage() {
           <button onClick={() => setShowBulkAdd(weekStart)} className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs sm:text-sm hover:bg-blue-700">
             <Users size={14} /> <span className="hidden sm:inline">Bulk Add</span><span className="sm:hidden">Bulk</span>
           </button>
+          <button onClick={() => setShowBulkDelete(true)} className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-xs sm:text-sm hover:bg-red-50 hover:border-red-300">
+            <Trash2 size={14} /> <span className="hidden sm:inline">Bulk Delete</span><span className="sm:hidden">Del</span>
+          </button>
           <button onClick={handleGenerate} disabled={generating} className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs sm:text-sm hover:bg-green-700 disabled:opacity-50">
             <Plus size={14} /> <span className="hidden sm:inline">{generating ? "Generating..." : "Generate"}</span><span className="sm:hidden">{generating ? "..." : "Gen"}</span>
           </button>
@@ -372,6 +377,7 @@ export default function SchedulePage() {
       <CandidatePanel shiftId={selectedShiftId} onClose={() => setSelectedShiftId(null)} onAssign={refresh} />
       {showAddShift && <AddShiftForm date={showAddShift} onClose={() => setShowAddShift(null)} onCreated={refresh} />}
       {showBulkAdd && <BulkAddShiftForm date={showBulkAdd} onClose={() => setShowBulkAdd(null)} onCreated={refresh} />}
+      {showBulkDelete && schedule?.days && <BulkDeleteForm weekStart={weekStart} weekEnd={weekEnd} days={schedule.days} onClose={() => setShowBulkDelete(false)} onDeleted={refresh} />}
       {showStaffOut && <StaffOutForm weekStart={weekStart} weekEnd={weekEnd} onClose={() => setShowStaffOut(false)} onDone={refresh} />}
     </div>
   );
