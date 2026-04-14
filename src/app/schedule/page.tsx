@@ -186,7 +186,7 @@ export default function SchedulePage() {
       </div>
 
       {/* ── Row 2: Filters + actions ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
         <div className="flex items-center gap-2 overflow-x-auto">
           <select value={studentFilter} onChange={e => setStudentFilter(e.target.value)} className="border rounded-lg px-2 py-1.5 text-sm bg-white min-w-0">
             <option value="">All Students</option>
@@ -205,12 +205,6 @@ export default function SchedulePage() {
           )}
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2">
-          <button onClick={() => setShowBulkAdd(weekStart)} className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs sm:text-sm hover:bg-blue-700">
-            <Users size={14} /> <span className="hidden sm:inline">Bulk Add</span><span className="sm:hidden">Bulk</span>
-          </button>
-          <button onClick={() => setShowBulkDelete(true)} className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-xs sm:text-sm hover:bg-red-50 hover:border-red-300">
-            <Trash2 size={14} /> <span className="hidden sm:inline">Bulk Delete</span><span className="sm:hidden">Del</span>
-          </button>
           <button onClick={handleGenerate} disabled={generating} className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs sm:text-sm hover:bg-green-700 disabled:opacity-50">
             <Plus size={14} /> <span className="hidden sm:inline">{generating ? "Generating..." : "Generate"}</span><span className="sm:hidden">{generating ? "..." : "Gen"}</span>
           </button>
@@ -224,6 +218,16 @@ export default function SchedulePage() {
             <UserCog size={14} /> <span className="hidden sm:inline">Staff OUT</span>
           </button>
         </div>
+      </div>
+
+      {/* ── Row 3: Bulk actions ── */}
+      <div className="flex items-center gap-1.5 mb-4">
+        <button onClick={() => setShowBulkAdd(weekStart)} className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs sm:text-sm hover:bg-blue-700">
+          <Users size={14} /> Bulk Add
+        </button>
+        <button onClick={() => setShowBulkDelete(true)} className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-xs sm:text-sm hover:bg-red-50 hover:border-red-300">
+          <Trash2 size={14} /> Bulk Delete
+        </button>
       </div>
 
       {/* ── Warnings ── */}

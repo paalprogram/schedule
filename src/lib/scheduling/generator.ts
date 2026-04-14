@@ -108,7 +108,7 @@ export function autoAssignOpenShifts(weekStart: string, weekEnd: string) {
       excludeShiftId: shift.id,
     });
 
-    const best = candidates.find(c => !c.excluded && c.totalScore >= 30);
+    const best = candidates.find(c => !c.excluded && c.totalScore >= 45);
     if (best) {
       const writeDb = new Database(getDbPath());
       writeDb.prepare(`
@@ -153,7 +153,7 @@ export function autoAssignOpenShifts(weekStart: string, weekEnd: string) {
     });
 
     // Exclude the already-assigned primary staff
-    const best = candidates.find(c => !c.excluded && c.totalScore >= 30 && c.staffId !== shift.assigned_staff_id);
+    const best = candidates.find(c => !c.excluded && c.totalScore >= 45 && c.staffId !== shift.assigned_staff_id);
     if (best) {
       const writeDb = new Database(getDbPath());
       writeDb.prepare(`
