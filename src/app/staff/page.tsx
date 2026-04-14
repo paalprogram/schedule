@@ -4,14 +4,16 @@ import { useStaff } from "@/lib/hooks";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
-import { Plus, Edit2, Droplets, Moon, Search } from "lucide-react";
+import { Plus, Edit2, Droplets, Moon, Search, Clock } from "lucide-react";
 import { ErrorBanner } from "@/components/ui/error-banner";
+import { BulkAvailabilityForm } from "@/components/staff/bulk-availability-form";
 import Link from "next/link";
 
 export default function StaffPage() {
   const { data: staff, error: staffError, mutate } = useStaff();
   const { toast } = useToast();
   const [showAdd, setShowAdd] = useState(false);
+  const [showBulkAvail, setShowBulkAvail] = useState(false);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
 
@@ -48,12 +50,20 @@ export default function StaffPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Staff Management</h1>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium"
-        >
-          <Plus size={16} /> Add Staff
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowBulkAvail(true)}
+            className="flex items-center gap-2 border border-blue-200 text-blue-600 px-4 py-2 rounded-lg hover:bg-blue-50 text-sm font-medium"
+          >
+            <Clock size={16} /> Set Availability
+          </button>
+          <button
+            onClick={() => setShowAdd(true)}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium"
+          >
+            <Plus size={16} /> Add Staff
+          </button>
+        </div>
       </div>
 
       {staffError && <ErrorBanner message="Failed to load staff list." onRetry={() => mutate()} />}
@@ -142,6 +152,8 @@ export default function StaffPage() {
           <div className="text-center py-8 text-gray-500">{!staff || staff.length === 0 ? "No staff members yet." : "No staff match your filters."}</div>
         )}
       </div>
+
+      {showBulkAvail && <BulkAvailabilityForm onClose={() => setShowBulkAvail(false)} onCreated={() => mutate()} />}
 
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add Staff Member">
         <form onSubmit={handleAdd} className="space-y-4">
