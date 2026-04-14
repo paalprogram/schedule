@@ -9,6 +9,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     id: number; student_id: number; date: string;
     start_time: string; end_time: string; shift_type: string;
     needs_swim_support: number;
+    assigned_staff_id: number | null;
+    second_staff_id: number | null;
   } | undefined;
   db.close();
 
@@ -25,5 +27,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     mode: "manual",
   });
 
-  return NextResponse.json(candidates);
+  // Filter out staff already assigned to this shift
+  const alreadyAssigned = new Set<number>();
+  if (shift.assigned_staff_id) alreadyAssigned.add(shift.assigned_staff_id);
+  if (shift.second_staff_id) alreadyAssigned.add(shift.second_staff_id);
+
+  const filtered = candidates.filter(c => !alreadyAssigned.has(c.staffId));
+
+  return NextResponse.json(filtered);
 }

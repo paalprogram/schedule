@@ -154,9 +154,11 @@ export async function GET(req: NextRequest) {
   }
 
   // Build assigned staff set per date (both primary and second)
+  // Skip shifts where the student is absent — those staff are effectively free
   const assignedByDate = new Map<string, Set<number>>();
   for (const s of shifts as Array<Record<string, unknown>>) {
     const date = s.date as string;
+    if (absenceSet.has(`${s.student_id}:${date}`)) continue;
     if (!assignedByDate.has(date)) assignedByDate.set(date, new Set());
     const set = assignedByDate.get(date)!;
     if (s.assigned_staff_id) set.add(s.assigned_staff_id as number);
