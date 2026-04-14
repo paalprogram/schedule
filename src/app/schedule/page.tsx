@@ -9,6 +9,7 @@ import {
   AlertTriangle, UserX, FileText, UserMinus, Calendar, UserCog, Users, Trash2,
 } from "lucide-react";
 import { ErrorBanner } from "@/components/ui/error-banner";
+import { Spinner, LoadingOverlay } from "@/components/ui/spinner";
 import { ShiftCard } from "@/components/schedule/shift-card";
 import { CandidatePanel } from "@/components/schedule/candidate-panel";
 import { AddShiftForm } from "@/components/schedule/add-shift-form";
@@ -38,6 +39,7 @@ export default function SchedulePage() {
   const [showBulkAdd, setShowBulkAdd] = useState<string | null>(null);
   const [showBulkDelete, setShowBulkDelete] = useState(false);
   const [autoAssigningDay, setAutoAssigningDay] = useState<string | null>(null);
+  const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
   const { mutate: mutateAbsences } = useAbsences(weekStart, weekEnd);
   const { toast } = useToast();
 
@@ -75,6 +77,7 @@ export default function SchedulePage() {
 
   async function handleGenerate() {
     setGenerating(true);
+    setLoadingMessage("Generating shifts from templates...");
     await fetch("/api/schedule/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -82,11 +85,13 @@ export default function SchedulePage() {
     });
     refresh();
     setGenerating(false);
+    setLoadingMessage(null);
     toast("Shifts generated from templates");
   }
 
   async function handleAutoAssign() {
     setAutoAssigning(true);
+    setLoadingMessage("Auto-assigning staff to open shifts...");
     const res = await fetch("/api/schedule/auto-assign", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -95,6 +100,7 @@ export default function SchedulePage() {
     const result = await res.json();
     refresh();
     setAutoAssigning(false);
+    setLoadingMessage(null);
     if (result.failed > 0) {
       toast(`Assigned ${result.assigned} shifts, ${result.failed} could not be filled`, "warning");
     } else {
@@ -104,6 +110,7 @@ export default function SchedulePage() {
 
   async function handleAutoAssignDay(date: string) {
     setAutoAssigningDay(date);
+    setLoadingMessage(`Auto-assigning shifts for ${date}...`);
     const res = await fetch("/api/schedule/auto-assign", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -112,6 +119,7 @@ export default function SchedulePage() {
     const result = await res.json();
     refresh();
     setAutoAssigningDay(null);
+    setLoadingMessage(null);
     if (result.total === 0) {
       toast("No open shifts on this day");
     } else if (result.failed > 0) {
@@ -209,10 +217,10 @@ export default function SchedulePage() {
 
         {/* Schedule actions */}
         <button onClick={handleGenerate} disabled={generating} className="flex items-center gap-1 px-2.5 py-1.5 bg-green-600 text-white rounded-lg text-xs sm:text-sm hover:bg-green-700 disabled:opacity-50">
-          <Plus size={14} /> {generating ? "..." : "Generate"}
+          {generating ? <Spinner size={14} /> : <Plus size={14} />} {generating ? "Generating..." : "Generate"}
         </button>
         <button onClick={handleAutoAssign} disabled={autoAssigning} className="flex items-center gap-1 px-2.5 py-1.5 bg-purple-600 text-white rounded-lg text-xs sm:text-sm hover:bg-purple-700 disabled:opacity-50">
-          <Wand2 size={14} /> {autoAssigning ? "..." : "Auto-Assign"}
+          {autoAssigning ? <Spinner size={14} /> : <Wand2 size={14} />} {autoAssigning ? "Assigning..." : "Auto-Assign"}
         </button>
 
         {/* Divider */}
@@ -411,6 +419,7 @@ export default function SchedulePage() {
       {showBulkAdd && <BulkAddShiftForm date={showBulkAdd} onClose={() => setShowBulkAdd(null)} onCreated={refresh} />}
       {showBulkDelete && schedule?.days && <BulkDeleteForm weekStart={weekStart} weekEnd={weekEnd} days={schedule.days} onClose={() => setShowBulkDelete(false)} onDeleted={refresh} />}
       {showStaffOut && <StaffOutForm weekStart={weekStart} weekEnd={weekEnd} onClose={() => setShowStaffOut(false)} onDone={refresh} />}
+      {loadingMessage && <LoadingOverlay message={loadingMessage} />}
     </div>
   );
 }
