@@ -155,9 +155,9 @@ export default function SchedulePage() {
 
   return (
     <div>
-      {/* ── Row 1: Title + week nav ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
-        <div className="flex items-center gap-2 sm:gap-4">
+      {/* ── Header: Title + week nav + exports ── */}
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <div className="flex items-center gap-3">
           <h1 className="text-lg sm:text-2xl font-bold text-gray-900">Schedule</h1>
           <div className="flex items-center gap-1 bg-white border rounded-lg px-1.5 py-0.5 sm:px-2 sm:py-1">
             <button onClick={() => setWeekOffset(w => w - 1)} className="p-1 hover:bg-gray-100 rounded">
@@ -172,7 +172,7 @@ export default function SchedulePage() {
             <button onClick={() => setWeekOffset(0)} className="text-xs text-blue-600 hover:text-blue-800 px-1">Today</button>
           </div>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1">
           <button onClick={() => window.open(`/api/export/pdf?weekStart=${weekStart}&weekEnd=${weekEnd}`, "_blank")} className="p-2 border rounded-lg hover:bg-gray-50" title="PDF">
             <FileText size={15} className="text-gray-500" />
           </button>
@@ -185,48 +185,56 @@ export default function SchedulePage() {
         </div>
       </div>
 
-      {/* ── Row 2: Filters + actions ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-        <div className="flex items-center gap-2 overflow-x-auto">
-          <select value={studentFilter} onChange={e => setStudentFilter(e.target.value)} className="border rounded-lg px-2 py-1.5 text-sm bg-white min-w-0">
-            <option value="">All Students</option>
-            {allStudents?.filter((s: Record<string, unknown>) => s.active).map((s: Record<string, unknown>) => (
-              <option key={s.id as number} value={String(s.id)}>{s.name as string}</option>
-            ))}
-          </select>
-          <select value={staffFilter} onChange={e => setStaffFilter(e.target.value)} className="border rounded-lg px-2 py-1.5 text-sm bg-white min-w-0">
-            <option value="">All Staff</option>
-            {allStaff?.filter((s: Record<string, unknown>) => s.active).map((s: Record<string, unknown>) => (
-              <option key={s.id as number} value={String(s.id)}>{s.name as string}</option>
-            ))}
-          </select>
-          {(studentFilter || staffFilter) && (
-            <button onClick={() => { setStudentFilter(""); setStaffFilter(""); }} className="text-xs text-blue-600 shrink-0">Clear</button>
-          )}
-        </div>
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          <button onClick={handleGenerate} disabled={generating} className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs sm:text-sm hover:bg-green-700 disabled:opacity-50">
-            <Plus size={14} /> <span className="hidden sm:inline">{generating ? "Generating..." : "Generate"}</span><span className="sm:hidden">{generating ? "..." : "Gen"}</span>
-          </button>
-          <button onClick={handleAutoAssign} disabled={autoAssigning} className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-purple-600 text-white rounded-lg text-xs sm:text-sm hover:bg-purple-700 disabled:opacity-50">
-            <Wand2 size={14} /> <span className="hidden sm:inline">{autoAssigning ? "Assigning..." : "Auto-Assign"}</span><span className="sm:hidden">{autoAssigning ? "..." : "Auto"}</span>
-          </button>
-          <button onClick={() => setShowAbsencePanel(p => !p)} className={`flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm ${showAbsencePanel ? "bg-orange-600 text-white" : "border hover:bg-gray-50"}`}>
-            <UserMinus size={14} /> <span className="hidden sm:inline">{showAbsencePanel ? "Done" : "Absences"}</span>
-          </button>
-          <button onClick={() => setShowStaffOut(true)} className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 border rounded-lg text-xs sm:text-sm hover:bg-gray-50 text-red-600 border-red-200 hover:border-red-300">
-            <UserCog size={14} /> <span className="hidden sm:inline">Staff OUT</span>
-          </button>
-        </div>
-      </div>
+      {/* ── Toolbar: filters, actions, bulk ── */}
+      <div className="flex flex-wrap items-center gap-1.5 mb-4">
+        {/* Filters */}
+        <select value={studentFilter} onChange={e => setStudentFilter(e.target.value)} className="border rounded-lg px-2 py-1.5 text-xs sm:text-sm bg-white">
+          <option value="">All Students</option>
+          {allStudents?.filter((s: Record<string, unknown>) => s.active).map((s: Record<string, unknown>) => (
+            <option key={s.id as number} value={String(s.id)}>{s.name as string}</option>
+          ))}
+        </select>
+        <select value={staffFilter} onChange={e => setStaffFilter(e.target.value)} className="border rounded-lg px-2 py-1.5 text-xs sm:text-sm bg-white">
+          <option value="">All Staff</option>
+          {allStaff?.filter((s: Record<string, unknown>) => s.active).map((s: Record<string, unknown>) => (
+            <option key={s.id as number} value={String(s.id)}>{s.name as string}</option>
+          ))}
+        </select>
+        {(studentFilter || staffFilter) && (
+          <button onClick={() => { setStudentFilter(""); setStaffFilter(""); }} className="text-xs text-blue-600">Clear</button>
+        )}
 
-      {/* ── Row 3: Bulk actions ── */}
-      <div className="flex items-center gap-1.5 mb-4">
-        <button onClick={() => setShowBulkAdd(weekStart)} className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs sm:text-sm hover:bg-blue-700">
+        {/* Divider */}
+        <div className="hidden sm:block w-px h-6 bg-gray-200" />
+
+        {/* Schedule actions */}
+        <button onClick={handleGenerate} disabled={generating} className="flex items-center gap-1 px-2.5 py-1.5 bg-green-600 text-white rounded-lg text-xs sm:text-sm hover:bg-green-700 disabled:opacity-50">
+          <Plus size={14} /> {generating ? "..." : "Generate"}
+        </button>
+        <button onClick={handleAutoAssign} disabled={autoAssigning} className="flex items-center gap-1 px-2.5 py-1.5 bg-purple-600 text-white rounded-lg text-xs sm:text-sm hover:bg-purple-700 disabled:opacity-50">
+          <Wand2 size={14} /> {autoAssigning ? "..." : "Auto-Assign"}
+        </button>
+
+        {/* Divider */}
+        <div className="hidden sm:block w-px h-6 bg-gray-200" />
+
+        {/* Bulk actions */}
+        <button onClick={() => setShowBulkAdd(weekStart)} className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 text-white rounded-lg text-xs sm:text-sm hover:bg-blue-700">
           <Users size={14} /> Bulk Add
         </button>
-        <button onClick={() => setShowBulkDelete(true)} className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-xs sm:text-sm hover:bg-red-50 hover:border-red-300">
+        <button onClick={() => setShowBulkDelete(true)} className="flex items-center gap-1 px-2.5 py-1.5 border border-red-200 text-red-600 rounded-lg text-xs sm:text-sm hover:bg-red-50 hover:border-red-300">
           <Trash2 size={14} /> Bulk Delete
+        </button>
+
+        {/* Divider */}
+        <div className="hidden sm:block w-px h-6 bg-gray-200" />
+
+        {/* Staff actions */}
+        <button onClick={() => setShowAbsencePanel(p => !p)} className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs sm:text-sm ${showAbsencePanel ? "bg-orange-600 text-white" : "border hover:bg-gray-50"}`}>
+          <UserMinus size={14} /> {showAbsencePanel ? "Done" : "Absences"}
+        </button>
+        <button onClick={() => setShowStaffOut(true)} className="flex items-center gap-1 px-2.5 py-1.5 border rounded-lg text-xs sm:text-sm hover:bg-gray-50 text-red-600 border-red-200 hover:border-red-300">
+          <UserCog size={14} /> Staff OUT
         </button>
       </div>
 
