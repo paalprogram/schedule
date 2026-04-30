@@ -12,7 +12,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   const trainedStaff = db.prepare(`
-    SELECT t.*, s.name as staff_name, s.can_cover_swim, s.can_work_overnight
+    SELECT t.*, s.name as staff_name, s.can_work_overnight
     FROM staff_student_training t
     JOIN staff s ON t.staff_id = s.id
     WHERE t.student_id = ? AND t.approved = 1

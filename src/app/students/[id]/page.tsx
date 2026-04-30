@@ -18,7 +18,7 @@ interface ShiftTemplate {
 interface StudentDetail {
   id: number; name: string; active: number;
   requires_swim_support: number; staffing_ratio: number; notes: string | null;
-  trainedStaff: Array<{ staff_id: number; staff_name: string; can_cover_swim: number; can_work_overnight: number }>;
+  trainedStaff: Array<{ staff_id: number; staff_name: string; can_work_overnight: number }>;
   templates: ShiftTemplate[];
 }
 
@@ -325,7 +325,6 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
                   <div key={t.staff_id} className="flex items-center justify-between text-sm">
                     <div className="flex items-center gap-2">
                       <span>{t.staff_name}</span>
-                      {t.can_cover_swim ? <Badge variant="info">Swim</Badge> : null}
                       {t.can_work_overnight ? <Badge variant="default">ON</Badge> : null}
                     </div>
                     <button onClick={() => removeTraining(t.staff_id)} className="text-red-400 hover:text-red-600">

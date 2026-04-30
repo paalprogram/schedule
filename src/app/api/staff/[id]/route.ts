@@ -33,13 +33,14 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const db = getDb();
 
   db.transaction(() => {
+    // can_cover_swim is forced to 1 — see staff POST route for rationale.
     db.prepare(`
-      UPDATE staff SET name = ?, role = ?, active = ?, can_work_overnight = ?, can_cover_swim = ?,
+      UPDATE staff SET name = ?, role = ?, active = ?, can_work_overnight = ?, can_cover_swim = 1,
       max_hours_per_week = ?, notes = ?, updated_at = datetime('now')
       WHERE id = ?
     `).run(
       body.name, body.role, body.active ? 1 : 0,
-      body.can_work_overnight ? 1 : 0, body.can_cover_swim ? 1 : 0,
+      body.can_work_overnight ? 1 : 0,
       body.max_hours_per_week || null, body.notes || null, id
     );
 

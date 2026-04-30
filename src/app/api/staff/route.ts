@@ -22,14 +22,16 @@ export async function POST(req: NextRequest) {
   const db = getDb();
 
   const newId = db.transaction(() => {
+    // can_cover_swim is no longer a real distinction — all staff are
+    // swim-eligible. The column stays for legacy data; we set it to 1 here so
+    // any code still reading it sees the consistent "everyone can swim" view.
     const result = db.prepare(`
       INSERT INTO staff (name, role, can_work_overnight, can_cover_swim, max_hours_per_week, notes)
-      VALUES (?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, 1, ?, ?)
     `).run(
       body.name,
       body.role || "direct_care",
       body.can_work_overnight ? 1 : 0,
-      body.can_cover_swim ? 1 : 0,
       body.max_hours_per_week || null,
       body.notes || null
     );

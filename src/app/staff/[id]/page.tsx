@@ -15,7 +15,7 @@ interface AvailabilitySlot {
 
 interface StaffDetail {
   id: number; name: string; role: string; active: number;
-  can_work_overnight: number; can_cover_swim: number;
+  can_work_overnight: number;
   max_hours_per_week: number | null; notes: string | null;
   availability: AvailabilitySlot[];
   pto: Array<{ id: number; start_date: string; end_date: string; reason: string | null }>;
@@ -59,7 +59,6 @@ export default function StaffDetailPage({ params }: { params: Promise<{ id: stri
         role: form.get("role"),
         active: form.get("active") === "on",
         can_work_overnight: form.get("can_work_overnight") === "on",
-        can_cover_swim: form.get("can_cover_swim") === "on",
         max_hours_per_week: form.get("max_hours_per_week") ? parseInt(form.get("max_hours_per_week") as string) : null,
         notes: form.get("notes") || null,
       }),
@@ -78,7 +77,6 @@ export default function StaffDetailPage({ params }: { params: Promise<{ id: stri
       body: JSON.stringify({
         name: staff?.name, role: staff?.role, active: !!staff?.active,
         can_work_overnight: !!staff?.can_work_overnight,
-        can_cover_swim: !!staff?.can_cover_swim,
         max_hours_per_week: staff?.max_hours_per_week,
         notes: staff?.notes,
         pto: [...currentPto, {
@@ -102,7 +100,6 @@ export default function StaffDetailPage({ params }: { params: Promise<{ id: stri
       body: JSON.stringify({
         name: staff?.name, role: staff?.role, active: !!staff?.active,
         can_work_overnight: !!staff?.can_work_overnight,
-        can_cover_swim: !!staff?.can_cover_swim,
         max_hours_per_week: staff?.max_hours_per_week,
         notes: staff?.notes,
         pto: updatedPto,
@@ -234,10 +231,6 @@ export default function StaffDetailPage({ params }: { params: Promise<{ id: stri
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" name="active" defaultChecked={!!staff.active} className="rounded" />
                 Active
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" name="can_cover_swim" defaultChecked={!!staff.can_cover_swim} className="rounded" />
-                Swim Certified
               </label>
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" name="can_work_overnight" defaultChecked={!!staff.can_work_overnight} className="rounded" />

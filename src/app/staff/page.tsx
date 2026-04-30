@@ -4,7 +4,7 @@ import { useStaff } from "@/lib/hooks";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
-import { Plus, Edit2, Droplets, Moon, Search, Clock } from "lucide-react";
+import { Plus, Edit2, Moon, Search, Clock } from "lucide-react";
 import { ErrorBanner } from "@/components/ui/error-banner";
 import { BulkAvailabilityForm } from "@/components/staff/bulk-availability-form";
 import Link from "next/link";
@@ -36,7 +36,6 @@ export default function StaffPage() {
         name: form.get("name"),
         role: form.get("role"),
         can_work_overnight: form.get("can_work_overnight") === "on",
-        can_cover_swim: form.get("can_cover_swim") === "on",
         max_hours_per_week: form.get("max_hours_per_week") ? parseInt(form.get("max_hours_per_week") as string) : null,
         notes: form.get("notes") || null,
       }),
@@ -110,7 +109,6 @@ export default function StaffPage() {
                 <td className="px-4 py-3 text-sm text-gray-600 capitalize">{(s.role as string).replace("_", " ")}</td>
                 <td className="px-4 py-3">
                   <div className="flex gap-1">
-                    {s.can_cover_swim ? <Badge variant="info"><Droplets size={12} className="mr-1" />Swim</Badge> : null}
                     {s.can_work_overnight ? <Badge variant="default"><Moon size={12} className="mr-1" />Overnight</Badge> : null}
                   </div>
                 </td>
@@ -142,7 +140,6 @@ export default function StaffPage() {
             </div>
             <div className="flex items-center gap-2 text-xs text-gray-500">
               <span className="capitalize">{(s.role as string).replace("_", " ")}</span>
-              {s.can_cover_swim ? <Badge variant="info" className="text-[10px]">Swim</Badge> : null}
               {s.can_work_overnight ? <Badge variant="default" className="text-[10px]">Night</Badge> : null}
               <span>{(s.trained_student_ids as string) ? (s.trained_student_ids as string).split(",").length : 0} trained</span>
             </div>
@@ -170,10 +167,6 @@ export default function StaffPage() {
             </select>
           </div>
           <div className="flex flex-wrap gap-x-6 gap-y-2">
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" name="can_cover_swim" className="rounded" />
-              Swim Certified
-            </label>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" name="can_work_overnight" className="rounded" />
               Overnight Available

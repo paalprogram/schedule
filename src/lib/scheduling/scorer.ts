@@ -52,9 +52,9 @@ export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
 
   // Get all active staff
   const allStaff = db.prepare(`
-    SELECT id, name, can_work_overnight, can_cover_swim FROM staff WHERE active = 1
+    SELECT id, name, can_work_overnight FROM staff WHERE active = 1
   `).all() as Array<{
-    id: number; name: string; can_work_overnight: number; can_cover_swim: number;
+    id: number; name: string; can_work_overnight: number;
   }>;
 
   const isOvernight = input.shiftType === "overnight";
@@ -65,19 +65,12 @@ export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
   // Map staffId -> onboarding record (could be for a different student)
   const onboardingByStaff = new Map(allOnboarding.map(o => [o.staffId, o]));
 
-  // Per-candidate swim count is needed for tags/warnings on every staff member.
+  // Per-staff swim count this week, for load balancing. All staff are
+  // swim-eligible — the per-shift `needs_swim_support` flag is what marks a
+  // shift as a swim shift, and we just want to spread those across the team.
   const swimCounts = allStaff.map(s => getStaffSwimCountForWeek(s.id, weekStart, weekEnd));
-
-  // Average swim load is computed across swim-cert staff only — non-cert staff
-  // always have count 0 and would otherwise drag the average down, making the
-  // SWIM_BELOW_AVG bonus too easy to earn for swim-cert staff who actually
-  // have a heavy swim week.
-  const swimCertCounts = allStaff
-    .map((s, i) => ({ canSwim: !!s.can_cover_swim, count: swimCounts[i] }))
-    .filter(x => x.canSwim)
-    .map(x => x.count);
-  const avgSwim = swimCertCounts.length > 0
-    ? swimCertCounts.reduce((a, b) => a + b, 0) / swimCertCounts.length
+  const avgSwim = swimCounts.length > 0
+    ? swimCounts.reduce((a, b) => a + b, 0) / swimCounts.length
     : 0;
 
   // Cross-week rotation: trailing 4-week shift counts per staff. Used to nudge
@@ -191,7 +184,6 @@ export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
     const weekShifts = getStaffShiftsForWeek(s.id, weekStart, weekEnd);
     const totalShiftsThisWeek = weekShifts.length;
     const overnightEligible = !!s.can_work_overnight;
-    const swimEligible = !!s.can_cover_swim;
     const preferenceLevel = getStaffStudentPreference(s.id, input.studentId) as "preferred" | "neutral" | "avoid" | null;
     const trailingCount = trailingCounts.get(s.id) ?? 0;
     let rotationStatus: "under" | "over" | null = null;
@@ -212,8 +204,6 @@ export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
     if (available) tags.push("available");
     else if (!excluded) tags.push("limited availability");
     if (sameStudentCount >= MAX_SAME_STUDENT_PER_WEEK) tags.push(`${sameStudentCount}x this week`);
-    if (isSwim && swimEligible) tags.push("swim certified");
-    if (isSwim && !swimEligible) tags.push("no swim cert");
     if (isSwim && swimCount > avgSwim) tags.push("swim-heavy");
     if (isOvernight && overnightEligible) tags.push("overnight OK");
     if (isOvernight && !overnightEligible) tags.push("no overnight");
@@ -223,7 +213,6 @@ export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
     // Build warnings
     if (!trained) warnings.push("Not trained on this student");
     if (sameStudentCount >= MAX_SAME_STUDENT_PER_WEEK) warnings.push(`Already assigned to this student ${sameStudentCount} times this week`);
-    if (isSwim && !swimEligible) warnings.push("Not swim certified");
     if (isSwim && swimCount > avgSwim + 1) warnings.push(`High swim load (${swimCount} this week)`);
     if (isOvernight && !overnightEligible) warnings.push("Not cleared for overnight shifts");
     if (!available && !excluded) warnings.push("Outside stated availability hours");
@@ -250,11 +239,8 @@ export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
       else if (totalShiftsThisWeek <= LOAD_THRESHOLDS.MEDIUM) score += W.LOAD_MEDIUM;
       else if (totalShiftsThisWeek <= LOAD_THRESHOLDS.HIGH) score += W.LOAD_HIGH;
 
-      // Overnight/swim eligibility only contributes when the shift actually
-      // requires that capability — no filler points on unrelated shifts, so
-      // the auto-assign threshold means the same thing across shift types.
+      // Overnight eligibility only contributes when the shift actually requires it.
       if (isOvernight && overnightEligible) score += W.OVERNIGHT_ELIGIBLE;
-      if (isSwim && swimEligible) score += W.SWIM_ELIGIBLE;
 
       // Cross-week rotation nudge
       if (rotationStatus === "under") score += W.ROTATION_UNDER_USED;
@@ -284,7 +270,6 @@ export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
         swimCount,
         totalShiftsThisWeek,
         overnightEligible,
-        swimEligible,
         preferenceLevel,
         hasDedicatedRole: dedicatedRole,
         onboardingDay,

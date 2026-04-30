@@ -178,7 +178,6 @@ export interface CandidateScore {
     swimCount: number;
     totalShiftsThisWeek: number;
     overnightEligible: boolean;
-    swimEligible: boolean;
     preferenceLevel: "preferred" | "neutral" | "avoid" | null;
     hasDedicatedRole: boolean;
     onboardingDay: number | null;

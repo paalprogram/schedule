@@ -4,7 +4,7 @@ A staff scheduling web application designed specifically for schools and program
 
 ## What It Does
 
-- **Staff Management** — Track staff profiles, availability, PTO, overnight/swim certifications, and training assignments
+- **Staff Management** — Track staff profiles, availability, PTO, overnight clearance, and training assignments
 - **Student Management** — Manage student profiles, approved staff lists, swim support needs, and recurring shift templates
 - **Weekly Schedule Board** — Visual 5-day schedule with shift cards showing assignments, warnings, and status. Click any shift to see ranked replacement candidates
 - **Auto-Scheduling** — Generate shifts from templates and auto-assign staff using a rule-based scoring engine
@@ -44,10 +44,11 @@ In manual mode the last three become warnings instead of exclusions.
 | Total weekly shifts ≤ 5 | +10 |
 | Total weekly shifts ≤ 7 | +5 |
 | Overnight eligible (overnight shift only) | +5 |
-| Swim certified (swim shift only) | +5 |
 | Cross-week rotation: under-used trailing 4 weeks | +5 |
 | Marked "preferred" for this student | +25 |
 | Onboarding with this same student | +60 |
+
+> **Swimming:** All staff are considered swim-eligible. Swimming is per-shift: mark a student as needing swim support, then on a given day's shift toggle "needs swim support" if that's a swim activity. The scorer uses the per-staff swim count to balance swim load across the team.
 
 ### Penalties
 | Condition | Penalty |
@@ -107,7 +108,7 @@ The seed script creates:
 
 ### Adding Staff
 1. Go to **Staff** page and click **Add Staff**
-2. Set name, role, certifications (swim, overnight), max hours
+2. Set name, role, overnight clearance, max hours
 3. Click into the staff detail to set availability, PTO, and trained students
 
 ### Adding Students

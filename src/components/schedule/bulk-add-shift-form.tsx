@@ -28,7 +28,11 @@ export function BulkAddShiftForm({ date, onClose, onCreated }: BulkAddShiftFormP
   const [selectedStudents, setSelectedStudents] = useState<number[]>([]);
 
   const baseDayOfWeek = new Date(date + "T00:00:00").getDay();
-  const [additionalDays, setAdditionalDays] = useState<number[]>([]);
+  // Pre-select the day the user clicked from (if it's a weekday) — but they
+  // can deselect it. No day is forcibly included.
+  const [selectedDays, setSelectedDays] = useState<number[]>(
+    baseDayOfWeek >= 1 && baseDayOfWeek <= 5 ? [baseDayOfWeek] : []
+  );
 
   const activeStudents = students?.filter((s: Record<string, unknown>) => s.active) || [];
 
@@ -47,7 +51,7 @@ export function BulkAddShiftForm({ date, onClose, onCreated }: BulkAddShiftFormP
   }
 
   function toggleDay(day: number) {
-    setAdditionalDays(prev =>
+    setSelectedDays(prev =>
       prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
     );
   }
@@ -58,6 +62,10 @@ export function BulkAddShiftForm({ date, onClose, onCreated }: BulkAddShiftFormP
 
     if (selectedStudents.length === 0) {
       setError("Select at least one student");
+      return;
+    }
+    if (selectedDays.length === 0) {
+      setError("Select at least one day");
       return;
     }
 
@@ -73,8 +81,7 @@ export function BulkAddShiftForm({ date, onClose, onCreated }: BulkAddShiftFormP
       notes: form.get("notes") || null,
     };
 
-    const dates = [date, ...additionalDays.map(day => getDateForDay(date, day))];
-    const uniqueDates = [...new Set(dates)];
+    const uniqueDates = [...new Set(selectedDays.map(day => getDateForDay(date, day)))];
 
     let created = 0;
     let failed = 0;
@@ -114,7 +121,7 @@ export function BulkAddShiftForm({ date, onClose, onCreated }: BulkAddShiftFormP
     onClose();
   }
 
-  const totalShifts = selectedStudents.length * (1 + additionalDays.length);
+  const totalShifts = selectedStudents.length * selectedDays.length;
   const allSelected = activeStudents.length > 0 && selectedStudents.length === activeStudents.length;
 
   return (
@@ -207,20 +214,18 @@ export function BulkAddShiftForm({ date, onClose, onCreated }: BulkAddShiftFormP
           <div className="flex gap-1.5 flex-wrap">
             {[1, 2, 3, 4, 5].map(day => {
               const isBase = day === baseDayOfWeek;
-              const isSelected = additionalDays.includes(day);
+              const isSelected = selectedDays.includes(day);
               return (
                 <button
                   key={day}
                   type="button"
-                  disabled={isBase}
                   onClick={() => toggleDay(day)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    isBase
-                      ? "bg-blue-600 text-white cursor-default"
-                      : isSelected
-                      ? "bg-blue-100 text-blue-700 border border-blue-300"
+                    isSelected
+                      ? "bg-blue-600 text-white"
                       : "bg-white border border-gray-200 text-gray-500 hover:border-blue-300"
-                  }`}
+                  } ${isBase && !isSelected ? "ring-1 ring-blue-200" : ""}`}
+                  title={isBase ? "The day you opened bulk add from" : undefined}
                 >
                   {SHORT_DAYS[day]}
                   {isBase && " (current)"}
@@ -228,19 +233,18 @@ export function BulkAddShiftForm({ date, onClose, onCreated }: BulkAddShiftFormP
               );
             })}
           </div>
-          {(selectedStudents.length > 0 || additionalDays.length > 0) && (
-            <div className="mt-1.5 text-[11px] text-gray-500">
-              Will create {totalShifts} shift{totalShifts !== 1 ? "s" : ""} total
-              ({selectedStudents.length} student{selectedStudents.length !== 1 ? "s" : ""} &times; {1 + additionalDays.length} day{additionalDays.length > 0 ? "s" : ""})
-            </div>
-          )}
+          <div className="mt-1.5 text-[11px] text-gray-500">
+            {selectedDays.length === 0
+              ? "Pick at least one day."
+              : `Will create ${totalShifts} shift${totalShifts !== 1 ? "s" : ""} total (${selectedStudents.length} student${selectedStudents.length !== 1 ? "s" : ""} × ${selectedDays.length} day${selectedDays.length !== 1 ? "s" : ""}).`}
+          </div>
         </div>
 
         <div className="flex justify-end gap-2 pt-1">
           <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Cancel</button>
           <button
             type="submit"
-            disabled={creating || selectedStudents.length === 0}
+            disabled={creating || selectedStudents.length === 0 || selectedDays.length === 0}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
           >
             {creating ? "Creating..." : `Create ${totalShifts} Shift${totalShifts !== 1 ? "s" : ""}`}
