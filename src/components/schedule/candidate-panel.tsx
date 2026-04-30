@@ -132,7 +132,6 @@ export function CandidatePanel({ shiftId, onClose, onAssign }: CandidatePanelPro
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        assigned_staff_id: shift?.assigned_staff_id,
         notes: shiftNotes || null,
         override_note: shiftOverride || null,
       }),
@@ -147,7 +146,6 @@ export function CandidatePanel({ shiftId, onClose, onAssign }: CandidatePanelPro
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        assigned_staff_id: shift?.assigned_staff_id,
         start_time: editStartTime,
         end_time: editEndTime,
         shift_type: editShiftType,

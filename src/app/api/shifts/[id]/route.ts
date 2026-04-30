@@ -28,43 +28,59 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (validationError) return validationError;
 
   const db = getDb();
+  const shiftId = parseInt(id);
 
-  // Cross-check: if either staff slot is being set, ensure the post-update
-  // pair isn't the same person. The body alone can't catch this when only one
-  // slot is being patched.
-  if ("assigned_staff_id" in body || "second_staff_id" in body) {
-    const current = db.prepare(
-      "SELECT assigned_staff_id, second_staff_id FROM shift WHERE id = ?"
-    ).get(parseInt(id)) as { assigned_staff_id: number | null; second_staff_id: number | null } | undefined;
+  const current = db.prepare(
+    "SELECT assigned_staff_id, second_staff_id, status, date, start_time, end_time FROM shift WHERE id = ?"
+  ).get(shiftId) as {
+    assigned_staff_id: number | null; second_staff_id: number | null; status: string;
+    date: string; start_time: string; end_time: string;
+  } | undefined;
 
-    if (current) {
-      const nextPrimary = "assigned_staff_id" in body ? (body.assigned_staff_id ?? null) : current.assigned_staff_id;
-      const nextSecond = "second_staff_id" in body ? (body.second_staff_id ?? null) : current.second_staff_id;
-      if (nextPrimary !== null && nextSecond !== null && nextPrimary === nextSecond) {
-        db.close();
-        return NextResponse.json(
-          { error: "Validation failed", details: [{ field: "second_staff_id", message: "Second staff cannot be the same person as the primary staff" }] },
-          { status: 400 }
-        );
-      }
-    }
+  if (!current) {
+    db.close();
+    return NextResponse.json({ error: "Shift not found" }, { status: 404 });
+  }
+
+  // Resolve post-update staff slots so we can tell what actually changed.
+  // Status writes and the cascade-unassign sweep below MUST be gated on real
+  // change — otherwise saving notes on a 'covered' shift would demote it back
+  // to 'scheduled' and could yank the same staff off another overlapping shift.
+  const primaryProvided = "assigned_staff_id" in body;
+  const secondProvided = "second_staff_id" in body;
+  const nextPrimary = primaryProvided ? (body.assigned_staff_id ?? null) : current.assigned_staff_id;
+  const nextSecond = secondProvided ? (body.second_staff_id ?? null) : current.second_staff_id;
+  const primaryChanged = primaryProvided && nextPrimary !== current.assigned_staff_id;
+  const secondChanged = secondProvided && nextSecond !== current.second_staff_id;
+
+  if (nextPrimary !== null && nextSecond !== null && nextPrimary === nextSecond) {
+    db.close();
+    return NextResponse.json(
+      { error: "Validation failed", details: [{ field: "second_staff_id", message: "Second staff cannot be the same person as the primary staff" }] },
+      { status: 400 }
+    );
   }
 
   // Build dynamic SET clause — only update fields that are explicitly provided
   const sets: string[] = ["updated_at = datetime('now')"];
   const values: (string | number | null)[] = [];
 
-  if ("assigned_staff_id" in body) {
+  if (primaryProvided) {
     sets.push("assigned_staff_id = ?");
-    values.push(body.assigned_staff_id ?? null);
+    values.push(nextPrimary);
   }
-  if ("second_staff_id" in body) {
+  if (secondProvided) {
     sets.push("second_staff_id = ?");
-    values.push(body.second_staff_id ?? null);
+    values.push(nextSecond);
   }
-  if ("status" in body || "assigned_staff_id" in body) {
+  // Only touch status when the caller explicitly set one, or when the primary
+  // staff actually changed (a true assign/unassign event).
+  if ("status" in body) {
     sets.push("status = ?");
-    values.push(body.status || (body.assigned_staff_id ? "scheduled" : "open"));
+    values.push(body.status);
+  } else if (primaryChanged) {
+    sets.push("status = ?");
+    values.push(nextPrimary ? "scheduled" : "open");
   }
   if ("override_note" in body) {
     sets.push("override_note = ?");
@@ -95,53 +111,44 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     values.push(body.needs_swim_support ? 1 : 0);
   }
 
-  values.push(parseInt(id));
-  db.prepare(`UPDATE shift SET ${sets.join(", ")} WHERE id = ?`).run(...values);
+  // Cascade only for staff *newly placed* in their slot — not for unchanged values.
+  const staffToCheck: number[] = [];
+  if (primaryChanged && nextPrimary !== null) staffToCheck.push(nextPrimary);
+  if (secondChanged && nextSecond !== null) staffToCheck.push(nextSecond);
 
-  // Cascade: remove staff from overlapping shifts when assigned here
-  const staffId = body.assigned_staff_id ?? null;
-  const secondStaffId = body.second_staff_id ?? null;
-  const staffToCheck = [
-    ...("assigned_staff_id" in body && staffId ? [staffId] : []),
-    ...("second_staff_id" in body && secondStaffId ? [secondStaffId] : []),
-  ] as number[];
+  db.transaction(() => {
+    values.push(shiftId);
+    db.prepare(`UPDATE shift SET ${sets.join(", ")} WHERE id = ?`).run(...values);
 
-  if (staffToCheck.length > 0) {
-    const thisShift = db.prepare("SELECT date, start_time, end_time FROM shift WHERE id = ?")
-      .get(parseInt(id)) as { date: string; start_time: string; end_time: string } | undefined;
+    if (staffToCheck.length === 0) return;
 
-    if (thisShift) {
-      for (const sid of staffToCheck) {
-        // Find other shifts on the same day where this staff is assigned
-        const otherShifts = db.prepare(`
-          SELECT id, start_time, end_time, assigned_staff_id, second_staff_id
-          FROM shift
-          WHERE date = ? AND id != ? AND status IN ('scheduled', 'covered', 'open')
-          AND (assigned_staff_id = ? OR second_staff_id = ?)
-        `).all(thisShift.date, parseInt(id), sid, sid) as Array<{
-          id: number; start_time: string; end_time: string;
-          assigned_staff_id: number | null; second_staff_id: number | null;
-        }>;
+    const findOthers = db.prepare(`
+      SELECT id, start_time, end_time, assigned_staff_id, second_staff_id
+      FROM shift
+      WHERE date = ? AND id != ? AND status IN ('scheduled', 'covered', 'open')
+      AND (assigned_staff_id = ? OR second_staff_id = ?)
+    `);
+    const clearPrimary = db.prepare(`
+      UPDATE shift SET assigned_staff_id = NULL, status = 'open', updated_at = datetime('now')
+      WHERE id = ?
+    `);
+    const clearSecond = db.prepare(`
+      UPDATE shift SET second_staff_id = NULL, updated_at = datetime('now')
+      WHERE id = ?
+    `);
 
-        for (const other of otherShifts) {
-          if (timesOverlap(thisShift.start_time, thisShift.end_time, other.start_time, other.end_time)) {
-            // Remove this staff from the overlapping shift
-            if (other.assigned_staff_id === sid) {
-              db.prepare(`
-                UPDATE shift SET assigned_staff_id = NULL, status = 'open', updated_at = datetime('now')
-                WHERE id = ?
-              `).run(other.id);
-            } else if (other.second_staff_id === sid) {
-              db.prepare(`
-                UPDATE shift SET second_staff_id = NULL, updated_at = datetime('now')
-                WHERE id = ?
-              `).run(other.id);
-            }
-          }
-        }
+    for (const sid of staffToCheck) {
+      const otherShifts = findOthers.all(current.date, shiftId, sid, sid) as Array<{
+        id: number; start_time: string; end_time: string;
+        assigned_staff_id: number | null; second_staff_id: number | null;
+      }>;
+      for (const other of otherShifts) {
+        if (!timesOverlap(current.start_time, current.end_time, other.start_time, other.end_time)) continue;
+        if (other.assigned_staff_id === sid) clearPrimary.run(other.id);
+        else if (other.second_staff_id === sid) clearSecond.run(other.id);
       }
     }
-  }
+  })();
 
   const shift = db.prepare(`
     SELECT s.*, st.name as student_name, stf.name as staff_name, stf2.name as second_staff_name,
@@ -151,7 +158,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     LEFT JOIN staff stf ON s.assigned_staff_id = stf.id
     LEFT JOIN staff stf2 ON s.second_staff_id = stf2.id
     WHERE s.id = ?
-  `).get(id);
+  `).get(shiftId);
 
   db.close();
   return NextResponse.json(shift);
