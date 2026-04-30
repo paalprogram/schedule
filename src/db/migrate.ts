@@ -188,8 +188,11 @@ export function migrate(db: Database.Database) {
   try { db.exec(`ALTER TABLE shift ADD COLUMN second_staff_id INTEGER REFERENCES staff(id)`); } catch { /* exists */ }
 }
 
-// Run as a script when invoked directly via `npm run db:migrate`.
-const isCli = process.argv[1] && process.argv[1].endsWith("migrate.ts");
+// Run as a script when invoked directly — works whether the file is executed
+// as TS via tsx (dev: `npm run db:migrate`) or as the bundled JS in production
+// (`node migrate.js` from start.sh inside the Docker image).
+const entry = process.argv[1] || "";
+const isCli = entry.endsWith("migrate.ts") || entry.endsWith("migrate.js");
 if (isCli) {
   const dataDir = path.join(process.cwd(), "data");
   if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
