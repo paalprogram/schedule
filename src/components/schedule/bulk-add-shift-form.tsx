@@ -215,20 +215,23 @@ export function BulkAddShiftForm({ date, onClose, onCreated }: BulkAddShiftFormP
             {[1, 2, 3, 4, 5].map(day => {
               const isBase = day === baseDayOfWeek;
               const isSelected = selectedDays.includes(day);
+              const targetDate = getDateForDay(date, day);
+              const [, m, d] = targetDate.split("-");
               return (
                 <button
                   key={day}
                   type="button"
                   onClick={() => toggleDay(day)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  className={`flex flex-col items-center px-3 py-1.5 rounded-lg text-xs font-medium leading-tight transition-colors ${
                     isSelected
                       ? "bg-blue-600 text-white"
                       : "bg-white border border-gray-200 text-gray-500 hover:border-blue-300"
-                  } ${isBase && !isSelected ? "ring-1 ring-blue-200" : ""}`}
-                  title={isBase ? "The day you opened bulk add from" : undefined}
+                  } ${isBase && !isSelected ? "ring-1 ring-blue-300" : ""}`}
                 >
-                  {SHORT_DAYS[day]}
-                  {isBase && " (current)"}
+                  <span>{SHORT_DAYS[day]}</span>
+                  <span className={`text-[10px] mt-0.5 ${isSelected ? "text-blue-100" : "text-gray-400"}`}>
+                    {parseInt(m)}/{parseInt(d)}
+                  </span>
                 </button>
               );
             })}
