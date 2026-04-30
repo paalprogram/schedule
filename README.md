@@ -15,7 +15,7 @@ A staff scheduling web application designed specifically for schools and program
 
 ## How Scheduling Logic Works
 
-Staff assignment suggestions use a **rule-based scoring engine**. Scores are unbounded — typical "good" candidates land in the 80–115 range and onboarding candidates often score 140+. Auto-assign accepts a candidate at score ≥ 45.
+Staff assignment suggestions use a **rule-based scoring engine**. Scores are unbounded — typical "good" candidates land in the 80–110 range and onboarding candidates often score 140+. Auto-assign accepts a candidate at score ≥ 35; emergency reassign after a callout accepts ≥ 30.
 
 ### Hard Filters (auto mode)
 A candidate is excluded outright when any of these are true:
@@ -35,11 +35,14 @@ In manual mode the last three become warnings instead of exclusions.
 | Fully available during shift hours | +15 (or +5 outside availability) |
 | Same student 0× this week | +15 |
 | Same student 1× this week | +10 |
+| Same student 2× this week | +5 |
+| Same student 3× this week | −3 |
 | Swim load below team average (swim shift only) | +10 |
 | Swim load near average (swim shift only) | +5 |
 | Non-swim shift | +10 |
-| Total weekly shifts ≤ 4 | +15 |
-| Total weekly shifts ≤ 6 | +5 |
+| Total weekly shifts ≤ 3 | +15 |
+| Total weekly shifts ≤ 5 | +10 |
+| Total weekly shifts ≤ 7 | +5 |
 | Overnight eligible (overnight shift only) | +5 |
 | Swim certified (swim shift only) | +5 |
 | Cross-week rotation: under-used trailing 4 weeks | +5 |

@@ -6,7 +6,7 @@ const COOKIE_NAME = "schedule_auth";
 // Simple token: base64 of user:pass — good enough for single-user basic auth
 const VALID_TOKEN = Buffer.from(`${AUTH_USER}:${AUTH_PASS}`).toString("base64");
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Allow the login page and its API through

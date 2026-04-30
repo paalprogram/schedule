@@ -65,10 +65,19 @@ export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
   // Map staffId -> onboarding record (could be for a different student)
   const onboardingByStaff = new Map(allOnboarding.map(o => [o.staffId, o]));
 
-  // Get average swim count for normalization
+  // Per-candidate swim count is needed for tags/warnings on every staff member.
   const swimCounts = allStaff.map(s => getStaffSwimCountForWeek(s.id, weekStart, weekEnd));
-  const avgSwim = swimCounts.length > 0
-    ? swimCounts.reduce((a, b) => a + b, 0) / swimCounts.length
+
+  // Average swim load is computed across swim-cert staff only — non-cert staff
+  // always have count 0 and would otherwise drag the average down, making the
+  // SWIM_BELOW_AVG bonus too easy to earn for swim-cert staff who actually
+  // have a heavy swim week.
+  const swimCertCounts = allStaff
+    .map((s, i) => ({ canSwim: !!s.can_cover_swim, count: swimCounts[i] }))
+    .filter(x => x.canSwim)
+    .map(x => x.count);
+  const avgSwim = swimCertCounts.length > 0
+    ? swimCertCounts.reduce((a, b) => a + b, 0) / swimCertCounts.length
     : 0;
 
   // Cross-week rotation: trailing 4-week shift counts per staff. Used to nudge
@@ -228,6 +237,7 @@ export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
       if (sameStudentCount === 0) score += W.SAME_STUDENT_ZERO;
       else if (sameStudentCount === 1) score += W.SAME_STUDENT_ONE;
       else if (sameStudentCount === 2) score += W.SAME_STUDENT_TWO;
+      else if (sameStudentCount === 3) score += W.SAME_STUDENT_THREE;
 
       if (isSwim) {
         if (swimCount < avgSwim) score += W.SWIM_BELOW_AVG;
@@ -238,6 +248,7 @@ export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
 
       if (totalShiftsThisWeek <= LOAD_THRESHOLDS.LOW) score += W.LOAD_LOW;
       else if (totalShiftsThisWeek <= LOAD_THRESHOLDS.MEDIUM) score += W.LOAD_MEDIUM;
+      else if (totalShiftsThisWeek <= LOAD_THRESHOLDS.HIGH) score += W.LOAD_HIGH;
 
       // Overnight/swim eligibility only contributes when the shift actually
       // requires that capability — no filler points on unrelated shifts, so

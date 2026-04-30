@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db-utils";
 import { scoreCandidates } from "@/lib/scheduling/scorer";
+import { ASSIGN_THRESHOLDS } from "@/lib/scheduling/rules";
 
 /**
  * POST /api/staff-out
@@ -99,7 +100,7 @@ export async function POST(req: NextRequest) {
         excludeShiftId: shift.id,
       });
 
-      const best = candidates.find(c => !c.excluded && c.totalScore >= 30);
+      const best = candidates.find(c => !c.excluded && c.totalScore >= ASSIGN_THRESHOLDS.REASSIGN);
       if (best) {
         db.transaction(() => {
           reassignShift.run(best.staffId, shift.id);

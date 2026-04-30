@@ -1,6 +1,7 @@
 import { scoreCandidates } from "./scorer";
 import { getDb as _getDb } from "@/lib/db-utils";
 import { toDateString } from "@/lib/utils";
+import { ASSIGN_THRESHOLDS } from "./rules";
 
 function getDb() {
   return _getDb(false);
@@ -117,7 +118,7 @@ export function autoAssignOpenShifts(weekStart: string, weekEnd: string) {
       excludeShiftId: shift.id,
     });
 
-    const best = candidates.find(c => !c.excluded && c.totalScore >= 45);
+    const best = candidates.find(c => !c.excluded && c.totalScore >= ASSIGN_THRESHOLDS.AUTO);
     if (best) {
       updatePrimary.run(best.staffId, shift.id);
       assigned++;
@@ -154,7 +155,7 @@ export function autoAssignOpenShifts(weekStart: string, weekEnd: string) {
       excludeShiftId: shift.id,
     });
 
-    const best = candidates.find(c => !c.excluded && c.totalScore >= 45 && c.staffId !== shift.assigned_staff_id);
+    const best = candidates.find(c => !c.excluded && c.totalScore >= ASSIGN_THRESHOLDS.AUTO && c.staffId !== shift.assigned_staff_id);
     if (best) {
       updateSecond.run(best.staffId, shift.id);
       assigned++;
