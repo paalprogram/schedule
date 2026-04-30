@@ -29,6 +29,27 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const db = getDb();
 
+  // Cross-check: if either staff slot is being set, ensure the post-update
+  // pair isn't the same person. The body alone can't catch this when only one
+  // slot is being patched.
+  if ("assigned_staff_id" in body || "second_staff_id" in body) {
+    const current = db.prepare(
+      "SELECT assigned_staff_id, second_staff_id FROM shift WHERE id = ?"
+    ).get(parseInt(id)) as { assigned_staff_id: number | null; second_staff_id: number | null } | undefined;
+
+    if (current) {
+      const nextPrimary = "assigned_staff_id" in body ? (body.assigned_staff_id ?? null) : current.assigned_staff_id;
+      const nextSecond = "second_staff_id" in body ? (body.second_staff_id ?? null) : current.second_staff_id;
+      if (nextPrimary !== null && nextSecond !== null && nextPrimary === nextSecond) {
+        db.close();
+        return NextResponse.json(
+          { error: "Validation failed", details: [{ field: "second_staff_id", message: "Second staff cannot be the same person as the primary staff" }] },
+          { status: 400 }
+        );
+      }
+    }
+  }
+
   // Build dynamic SET clause — only update fields that are explicitly provided
   const sets: string[] = ["updated_at = datetime('now')"];
   const values: (string | number | null)[] = [];

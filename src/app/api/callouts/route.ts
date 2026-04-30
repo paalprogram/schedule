@@ -46,17 +46,17 @@ export async function POST(req: NextRequest) {
 
   const db = getDb();
 
-  // Mark the shift as called out
-  db.prepare(`
-    UPDATE shift SET status = 'called_out', assigned_staff_id = NULL, updated_at = datetime('now')
-    WHERE id = ?
-  `).run(body.shift_id);
+  const result = db.transaction(() => {
+    db.prepare(`
+      UPDATE shift SET status = 'called_out', assigned_staff_id = NULL, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(body.shift_id);
 
-  // Create callout record
-  const result = db.prepare(`
-    INSERT INTO callout (shift_id, original_staff_id, reason)
-    VALUES (?, ?, ?)
-  `).run(body.shift_id, body.original_staff_id, body.reason || null);
+    return db.prepare(`
+      INSERT INTO callout (shift_id, original_staff_id, reason)
+      VALUES (?, ?, ?)
+    `).run(body.shift_id, body.original_staff_id, body.reason || null);
+  })();
 
   const callout = db.prepare(`
     SELECT c.*, s.date, s.start_time, s.end_time,

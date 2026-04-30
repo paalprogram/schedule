@@ -22,26 +22,27 @@ export async function POST(req: NextRequest) {
 
   const db = getDb();
 
-  const result = db.prepare(`
-    INSERT INTO student_group (name, staffing_ratio, notes)
-    VALUES (?, ?, ?)
-  `).run(body.name, body.staffing_ratio || 2, body.notes || null);
+  const groupId = db.transaction(() => {
+    const result = db.prepare(`
+      INSERT INTO student_group (name, staffing_ratio, notes)
+      VALUES (?, ?, ?)
+    `).run(body.name, body.staffing_ratio || 2, body.notes || null);
 
-  const groupId = result.lastInsertRowid;
-
-  // Add members and update their group_id
-  if (body.student_ids && Array.isArray(body.student_ids)) {
-    const insertMember = db.prepare(
-      "INSERT OR IGNORE INTO student_group_member (group_id, student_id) VALUES (?, ?)"
-    );
-    const updateStudent = db.prepare(
-      "UPDATE student SET group_id = ?, updated_at = datetime('now') WHERE id = ?"
-    );
-    for (const studentId of body.student_ids) {
-      insertMember.run(groupId, studentId);
-      updateStudent.run(groupId, studentId);
+    if (body.student_ids && Array.isArray(body.student_ids)) {
+      const insertMember = db.prepare(
+        "INSERT OR IGNORE INTO student_group_member (group_id, student_id) VALUES (?, ?)"
+      );
+      const updateStudent = db.prepare(
+        "UPDATE student SET group_id = ?, updated_at = datetime('now') WHERE id = ?"
+      );
+      for (const studentId of body.student_ids) {
+        insertMember.run(result.lastInsertRowid, studentId);
+        updateStudent.run(result.lastInsertRowid, studentId);
+      }
     }
-  }
+
+    return result.lastInsertRowid;
+  })();
 
   const group = db.prepare("SELECT * FROM student_group WHERE id = ?").get(groupId);
   db.close();
@@ -56,36 +57,36 @@ export async function PUT(req: NextRequest) {
 
   const db = getDb();
 
-  if (body.name !== undefined) {
-    db.prepare("UPDATE student_group SET name = ? WHERE id = ?").run(body.name, body.id);
-  }
-  if (body.staffing_ratio !== undefined) {
-    db.prepare("UPDATE student_group SET staffing_ratio = ? WHERE id = ?").run(body.staffing_ratio, body.id);
-  }
-  if (body.active !== undefined) {
-    db.prepare("UPDATE student_group SET active = ? WHERE id = ?").run(body.active ? 1 : 0, body.id);
-  }
-  if (body.notes !== undefined) {
-    db.prepare("UPDATE student_group SET notes = ? WHERE id = ?").run(body.notes, body.id);
-  }
-
-  // Update members if provided
-  if (body.student_ids && Array.isArray(body.student_ids)) {
-    // Clear old group_id references
-    db.prepare("UPDATE student SET group_id = NULL WHERE group_id = ?").run(body.id);
-    db.prepare("DELETE FROM student_group_member WHERE group_id = ?").run(body.id);
-
-    const insertMember = db.prepare(
-      "INSERT INTO student_group_member (group_id, student_id) VALUES (?, ?)"
-    );
-    const updateStudent = db.prepare(
-      "UPDATE student SET group_id = ?, updated_at = datetime('now') WHERE id = ?"
-    );
-    for (const studentId of body.student_ids) {
-      insertMember.run(body.id, studentId);
-      updateStudent.run(body.id, studentId);
+  db.transaction(() => {
+    if (body.name !== undefined) {
+      db.prepare("UPDATE student_group SET name = ? WHERE id = ?").run(body.name, body.id);
     }
-  }
+    if (body.staffing_ratio !== undefined) {
+      db.prepare("UPDATE student_group SET staffing_ratio = ? WHERE id = ?").run(body.staffing_ratio, body.id);
+    }
+    if (body.active !== undefined) {
+      db.prepare("UPDATE student_group SET active = ? WHERE id = ?").run(body.active ? 1 : 0, body.id);
+    }
+    if (body.notes !== undefined) {
+      db.prepare("UPDATE student_group SET notes = ? WHERE id = ?").run(body.notes, body.id);
+    }
+
+    if (body.student_ids && Array.isArray(body.student_ids)) {
+      db.prepare("UPDATE student SET group_id = NULL WHERE group_id = ?").run(body.id);
+      db.prepare("DELETE FROM student_group_member WHERE group_id = ?").run(body.id);
+
+      const insertMember = db.prepare(
+        "INSERT INTO student_group_member (group_id, student_id) VALUES (?, ?)"
+      );
+      const updateStudent = db.prepare(
+        "UPDATE student SET group_id = ?, updated_at = datetime('now') WHERE id = ?"
+      );
+      for (const studentId of body.student_ids) {
+        insertMember.run(body.id, studentId);
+        updateStudent.run(body.id, studentId);
+      }
+    }
+  })();
 
   const group = db.prepare("SELECT * FROM student_group WHERE id = ?").get(body.id);
   db.close();
@@ -100,10 +101,11 @@ export async function DELETE(req: NextRequest) {
   }
 
   const db = getDb();
-  // Clear group_id on students
-  db.prepare("UPDATE student SET group_id = NULL WHERE group_id = ?").run(parseInt(id));
-  db.prepare("DELETE FROM student_group_member WHERE group_id = ?").run(parseInt(id));
-  const result = db.prepare("DELETE FROM student_group WHERE id = ?").run(parseInt(id));
+  const result = db.transaction(() => {
+    db.prepare("UPDATE student SET group_id = NULL WHERE group_id = ?").run(parseInt(id));
+    db.prepare("DELETE FROM student_group_member WHERE group_id = ?").run(parseInt(id));
+    return db.prepare("DELETE FROM student_group WHERE id = ?").run(parseInt(id));
+  })();
   db.close();
 
   if (result.changes === 0) {

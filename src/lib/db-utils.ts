@@ -51,3 +51,20 @@ export function getDb(readonly = false) {
   db.pragma("foreign_keys = ON");
   return db;
 }
+
+// Module-level singleton for hot paths (scoring, conflict checks) that would
+// otherwise open/close hundreds of handles per request. Stashed on globalThis so
+// Next.js dev hot-reload doesn't leak a new connection on every module reload.
+declare global {
+  var __scheduleAppSharedDb: Database.Database | undefined;
+}
+
+export function getSharedDb(): Database.Database {
+  if (!globalThis.__scheduleAppSharedDb) {
+    const db = new Database(getDbPath());
+    db.pragma("foreign_keys = ON");
+    db.pragma("journal_mode = WAL");
+    globalThis.__scheduleAppSharedDb = db;
+  }
+  return globalThis.__scheduleAppSharedDb;
+}

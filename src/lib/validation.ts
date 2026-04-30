@@ -126,10 +126,17 @@ export function validateShiftCreate(body: Record<string, unknown>) {
   if (!isValidTime(body.start_time)) errors.push({ field: "start_time", message: "Valid time required (HH:MM)" });
   if (!isValidTime(body.end_time)) errors.push({ field: "end_time", message: "Valid time required (HH:MM)" });
   if (body.shift_type !== undefined && !isValidShiftType(body.shift_type)) errors.push({ field: "shift_type", message: "Must be regular or overnight" });
-  if (body.activity_type !== undefined && !isValidActivityType(body.activity_type)) errors.push({ field: "activity_type", message: "Must be general, swimming, or community" });
+  if (body.activity_type !== undefined && !isValidActivityType(body.activity_type)) errors.push({ field: "activity_type", message: `Must be one of: ${VALID_ACTIVITY_TYPES.join(", ")}` });
   // For regular (non-overnight) shifts, end must be after start
   if (isValidTime(body.start_time) && isValidTime(body.end_time) && body.shift_type !== "overnight") {
     if (body.end_time <= body.start_time) errors.push({ field: "end_time", message: "End time must be after start time for regular shifts" });
+  }
+  if (
+    body.assigned_staff_id !== undefined && body.assigned_staff_id !== null &&
+    body.second_staff_id !== undefined && body.second_staff_id !== null &&
+    body.assigned_staff_id === body.second_staff_id
+  ) {
+    errors.push({ field: "second_staff_id", message: "Second staff cannot be the same person as the primary staff" });
   }
   return errors.length > 0 ? err(errors) : null;
 }
@@ -141,6 +148,40 @@ export function validateShiftUpdate(body: Record<string, unknown>) {
   }
   if (body.assigned_staff_id !== undefined && body.assigned_staff_id !== null && !isPositiveInt(body.assigned_staff_id)) {
     errors.push({ field: "assigned_staff_id", message: "Must be a valid staff ID or null" });
+  }
+  if (body.second_staff_id !== undefined && body.second_staff_id !== null && !isPositiveInt(body.second_staff_id)) {
+    errors.push({ field: "second_staff_id", message: "Must be a valid staff ID or null" });
+  }
+  if (body.date !== undefined && !isValidDate(body.date)) {
+    errors.push({ field: "date", message: "Valid date required (YYYY-MM-DD)" });
+  }
+  if (body.start_time !== undefined && !isValidTime(body.start_time)) {
+    errors.push({ field: "start_time", message: "Valid time required (HH:MM)" });
+  }
+  if (body.end_time !== undefined && !isValidTime(body.end_time)) {
+    errors.push({ field: "end_time", message: "Valid time required (HH:MM)" });
+  }
+  if (body.shift_type !== undefined && !isValidShiftType(body.shift_type)) {
+    errors.push({ field: "shift_type", message: "Must be regular or overnight" });
+  }
+  if (body.activity_type !== undefined && !isValidActivityType(body.activity_type)) {
+    errors.push({ field: "activity_type", message: `Must be one of: ${VALID_ACTIVITY_TYPES.join(", ")}` });
+  }
+  // If both times are provided in the same patch and the shift isn't overnight, validate ordering.
+  if (
+    isValidTime(body.start_time) && isValidTime(body.end_time) &&
+    body.shift_type !== "overnight" && body.end_time <= body.start_time
+  ) {
+    errors.push({ field: "end_time", message: "End time must be after start time for regular shifts" });
+  }
+  // If both staff slots are explicitly set in the same patch, they must differ.
+  // (Cross-checking against existing DB state is handled in the route handler.)
+  if (
+    body.assigned_staff_id !== undefined && body.assigned_staff_id !== null &&
+    body.second_staff_id !== undefined && body.second_staff_id !== null &&
+    body.assigned_staff_id === body.second_staff_id
+  ) {
+    errors.push({ field: "second_staff_id", message: "Second staff cannot be the same person as the primary staff" });
   }
   return errors.length > 0 ? err(errors) : null;
 }
@@ -159,7 +200,7 @@ export function validateTemplateCreate(body: Record<string, unknown>) {
   if (!isValidTime(body.start_time)) errors.push({ field: "start_time", message: "Valid time required (HH:MM)" });
   if (!isValidTime(body.end_time)) errors.push({ field: "end_time", message: "Valid time required (HH:MM)" });
   if (body.shift_type !== undefined && !isValidShiftType(body.shift_type)) errors.push({ field: "shift_type", message: "Must be regular or overnight" });
-  if (body.activity_type !== undefined && !isValidActivityType(body.activity_type)) errors.push({ field: "activity_type", message: "Must be general, swimming, or community" });
+  if (body.activity_type !== undefined && !isValidActivityType(body.activity_type)) errors.push({ field: "activity_type", message: `Must be one of: ${VALID_ACTIVITY_TYPES.join(", ")}` });
   return errors.length > 0 ? err(errors) : null;
 }
 
@@ -169,7 +210,7 @@ export function validateTemplateUpdate(body: Record<string, unknown>) {
   if (!isValidTime(body.start_time)) errors.push({ field: "start_time", message: "Valid time required (HH:MM)" });
   if (!isValidTime(body.end_time)) errors.push({ field: "end_time", message: "Valid time required (HH:MM)" });
   if (body.shift_type !== undefined && !isValidShiftType(body.shift_type)) errors.push({ field: "shift_type", message: "Must be regular or overnight" });
-  if (body.activity_type !== undefined && !isValidActivityType(body.activity_type)) errors.push({ field: "activity_type", message: "Must be general, swimming, or community" });
+  if (body.activity_type !== undefined && !isValidActivityType(body.activity_type)) errors.push({ field: "activity_type", message: `Must be one of: ${VALID_ACTIVITY_TYPES.join(", ")}` });
   return errors.length > 0 ? err(errors) : null;
 }
 

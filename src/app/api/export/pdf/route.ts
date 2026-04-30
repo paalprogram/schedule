@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db-utils";
+import { toDateString } from "@/lib/utils";
 import PDFDocument from "pdfkit";
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -51,7 +52,7 @@ export async function GET(req: NextRequest) {
   const d = new Date(weekStart + "T00:00:00");
   const end = new Date(weekEnd + "T00:00:00");
   while (d <= end) {
-    dates.push(d.toISOString().split("T")[0]);
+    dates.push(toDateString(d));
     d.setDate(d.getDate() + 1);
   }
 

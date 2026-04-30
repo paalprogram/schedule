@@ -1,7 +1,15 @@
 import { clsx, type ClassValue } from "clsx";
+import { format } from "date-fns";
 
 export function cn(...inputs: ClassValue[]) {
   return clsx(inputs);
+}
+
+// Local-time YYYY-MM-DD formatter. Avoid `toISOString()` here — that's UTC,
+// which produces off-by-one dates whenever local time and UTC sit on different
+// calendar days (e.g. ET evenings, or anywhere east of UTC after midnight local).
+export function toDateString(d: Date): string {
+  return format(d, "yyyy-MM-dd");
 }
 
 export function getWeekBounds(dateStr?: string) {
@@ -12,8 +20,7 @@ export function getWeekBounds(dateStr?: string) {
   const sunday = new Date(monday);
   sunday.setDate(monday.getDate() + 6);
 
-  const fmt = (d: Date) => d.toISOString().split("T")[0];
-  return { weekStart: fmt(monday), weekEnd: fmt(sunday) };
+  return { weekStart: toDateString(monday), weekEnd: toDateString(sunday) };
 }
 
 export function formatTime(time: string): string {

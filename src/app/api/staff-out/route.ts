@@ -32,53 +32,62 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Staff not found" }, { status: 404 });
   }
 
-  // 2. Create PTO record (check for existing first to avoid duplicate)
-  const existingPto = db.prepare(
-    "SELECT id FROM staff_pto WHERE staff_id = ? AND start_date <= ? AND end_date >= ?"
-  ).get(staff_id, date, date);
+  // 2-4. PTO + callouts + unassigns as one atomic step
+  const { ptoId, affectedShifts } = db.transaction(() => {
+    const existingPto = db.prepare(
+      "SELECT id FROM staff_pto WHERE staff_id = ? AND start_date <= ? AND end_date >= ?"
+    ).get(staff_id, date, date);
 
-  let ptoId: number | null = null;
-  if (!existingPto) {
-    const ptoResult = db.prepare(
-      "INSERT INTO staff_pto (staff_id, start_date, end_date, reason) VALUES (?, ?, ?, ?)"
-    ).run(staff_id, date, date, reason || "Called out");
-    ptoId = ptoResult.lastInsertRowid as number;
-  }
+    let createdPtoId: number | null = null;
+    if (!existingPto) {
+      const ptoResult = db.prepare(
+        "INSERT INTO staff_pto (staff_id, start_date, end_date, reason) VALUES (?, ?, ?, ?)"
+      ).run(staff_id, date, date, reason || "Called out");
+      createdPtoId = ptoResult.lastInsertRowid as number;
+    }
 
-  // 3. Find all their scheduled shifts on that date
-  const affectedShifts = db.prepare(`
-    SELECT s.id, s.student_id, s.start_time, s.end_time, s.shift_type,
-           s.needs_swim_support, st.name as student_name
-    FROM shift s
-    JOIN student st ON s.student_id = st.id
-    WHERE s.assigned_staff_id = ? AND s.date = ?
-    AND s.status IN ('scheduled', 'covered')
-  `).all(staff_id, date) as Array<{
-    id: number; student_id: number; start_time: string; end_time: string;
-    shift_type: string; needs_swim_support: number; student_name: string;
-  }>;
+    const shifts = db.prepare(`
+      SELECT s.id, s.student_id, s.start_time, s.end_time, s.shift_type,
+             s.needs_swim_support, st.name as student_name
+      FROM shift s
+      JOIN student st ON s.student_id = st.id
+      WHERE s.assigned_staff_id = ? AND s.date = ?
+      AND s.status IN ('scheduled', 'covered')
+    `).all(staff_id, date) as Array<{
+      id: number; student_id: number; start_time: string; end_time: string;
+      shift_type: string; needs_swim_support: number; student_name: string;
+    }>;
 
-  // 4. Create callout records and unassign
-  const insertCallout = db.prepare(
-    "INSERT INTO callout (shift_id, original_staff_id, reason) VALUES (?, ?, ?)"
-  );
-  const unassignShift = db.prepare(
-    "UPDATE shift SET assigned_staff_id = NULL, status = 'called_out', updated_at = datetime('now') WHERE id = ?"
-  );
+    const insertCallout = db.prepare(
+      "INSERT INTO callout (shift_id, original_staff_id, reason) VALUES (?, ?, ?)"
+    );
+    const unassignShift = db.prepare(
+      "UPDATE shift SET assigned_staff_id = NULL, status = 'called_out', updated_at = datetime('now') WHERE id = ?"
+    );
 
-  for (const shift of affectedShifts) {
-    insertCallout.run(shift.id, staff_id, reason || "Called out");
-    unassignShift.run(shift.id);
-  }
+    for (const shift of shifts) {
+      insertCallout.run(shift.id, staff_id, reason || "Called out");
+      unassignShift.run(shift.id);
+    }
 
-  db.close();
+    return { ptoId: createdPtoId, affectedShifts: shifts };
+  })();
 
-  // 5. Auto-reassign if requested
+  // 5. Auto-reassign if requested. Each reassignment is a separate transaction —
+  //    the scoring engine reads the latest committed state between iterations so
+  //    load balancing reflects assignments made earlier in this loop.
   let reassigned = 0;
   let reassignFailed = 0;
   const reassignDetails: Array<{ student: string; newStaff: string | null }> = [];
 
   if (auto_reassign !== false && affectedShifts.length > 0) {
+    const reassignShift = db.prepare(
+      "UPDATE shift SET assigned_staff_id = ?, status = 'covered', updated_at = datetime('now') WHERE id = ?"
+    );
+    const resolveCallout = db.prepare(
+      "UPDATE callout SET replacement_staff_id = ?, resolved = 1 WHERE shift_id = ? AND original_staff_id = ? AND resolved = 0"
+    );
+
     for (const shift of affectedShifts) {
       const candidates = scoreCandidates({
         studentId: shift.student_id,
@@ -92,15 +101,10 @@ export async function POST(req: NextRequest) {
 
       const best = candidates.find(c => !c.excluded && c.totalScore >= 30);
       if (best) {
-        const writeDb = getDb();
-        writeDb.prepare(
-          "UPDATE shift SET assigned_staff_id = ?, status = 'covered', updated_at = datetime('now') WHERE id = ?"
-        ).run(best.staffId, shift.id);
-        // Mark the callout as resolved
-        writeDb.prepare(
-          "UPDATE callout SET replacement_staff_id = ?, resolved = 1 WHERE shift_id = ? AND original_staff_id = ? AND resolved = 0"
-        ).run(best.staffId, shift.id, staff_id);
-        writeDb.close();
+        db.transaction(() => {
+          reassignShift.run(best.staffId, shift.id);
+          resolveCallout.run(best.staffId, shift.id, staff_id);
+        })();
         reassigned++;
         reassignDetails.push({ student: shift.student_name, newStaff: best.staffName });
       } else {
@@ -109,6 +113,8 @@ export async function POST(req: NextRequest) {
       }
     }
   }
+
+  db.close();
 
   return NextResponse.json({
     staffName: staff.name,

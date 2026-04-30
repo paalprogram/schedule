@@ -1,7 +1,6 @@
-import Database from "better-sqlite3";
-import path from "path";
 import { scoreCandidates } from "./scorer";
-import { getDb as _getDb, getDbPath } from "@/lib/db-utils";
+import { getDb as _getDb } from "@/lib/db-utils";
+import { toDateString } from "@/lib/utils";
 
 function getDb() {
   return _getDb(false);
@@ -15,7 +14,7 @@ export function generateWeekFromTemplates(weekStartDate: string) {
   for (let i = 0; i < 7; i++) {
     const d = new Date(startDate);
     d.setDate(startDate.getDate() + i);
-    dates.push(d.toISOString().split("T")[0]);
+    dates.push(toDateString(d));
   }
 
   // Load student absences for the week
@@ -36,34 +35,35 @@ export function generateWeekFromTemplates(weekStartDate: string) {
     INSERT INTO shift (student_id, assigned_staff_id, date, start_time, end_time, shift_type, activity_type, needs_swim_support, status, notes)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
+  const existsCheck = db.prepare(`
+    SELECT COUNT(*) as count FROM shift
+    WHERE student_id = ? AND date = ? AND start_time = ? AND end_time = ?
+  `);
 
-  let created = 0;
+  const created = db.transaction(() => {
+    let count = 0;
+    for (const template of templates) {
+      const targetDate = dates.find(d => new Date(d + "T00:00:00").getDay() === template.day_of_week);
+      if (!targetDate) continue;
 
-  for (const template of templates) {
-    // Find the date for this day_of_week in the week
-    const targetDate = dates.find(d => new Date(d + "T00:00:00").getDay() === template.day_of_week);
-    if (!targetDate) continue;
+      if (absenceSet.has(`${template.student_id}:${targetDate}`)) continue;
 
-    // Skip if student is absent on this date
-    if (absenceSet.has(`${template.student_id}:${targetDate}`)) continue;
+      const existingCount = (existsCheck.get(
+        template.student_id, targetDate, template.start_time, template.end_time
+      ) as { count: number }).count;
+      if (existingCount > 0) continue;
 
-    // Check if shift already exists for this slot
-    const existingCount = (db.prepare(`
-      SELECT COUNT(*) as count FROM shift
-      WHERE student_id = ? AND date = ? AND start_time = ? AND end_time = ?
-    `).get(template.student_id, targetDate, template.start_time, template.end_time) as { count: number }).count;
-
-    if (existingCount > 0) continue;
-
-    insertShift.run(
-      template.student_id, null, targetDate,
-      template.start_time, template.end_time,
-      template.shift_type, template.activity_type,
-      template.needs_swim_support, "open",
-      template.notes
-    );
-    created++;
-  }
+      insertShift.run(
+        template.student_id, null, targetDate,
+        template.start_time, template.end_time,
+        template.shift_type, template.activity_type,
+        template.needs_swim_support, "open",
+        template.notes
+      );
+      count++;
+    }
+    return count;
+  })();
 
   db.close();
   return { created };
@@ -92,7 +92,16 @@ export function autoAssignOpenShifts(weekStart: string, weekEnd: string) {
     needs_swim_support: number;
   }>;
 
-  db.close();
+  // Reused write statements — scoring queries the shared read singleton, but
+  // mutations flow through this single writable handle for the whole call.
+  const updatePrimary = db.prepare(`
+    UPDATE shift SET assigned_staff_id = ?, status = 'scheduled', updated_at = datetime('now')
+    WHERE id = ?
+  `);
+  const updateSecond = db.prepare(`
+    UPDATE shift SET second_staff_id = ?, updated_at = datetime('now')
+    WHERE id = ?
+  `);
 
   let assigned = 0;
   let failed = 0;
@@ -110,12 +119,7 @@ export function autoAssignOpenShifts(weekStart: string, weekEnd: string) {
 
     const best = candidates.find(c => !c.excluded && c.totalScore >= 45);
     if (best) {
-      const writeDb = new Database(getDbPath());
-      writeDb.prepare(`
-        UPDATE shift SET assigned_staff_id = ?, status = 'scheduled', updated_at = datetime('now')
-        WHERE id = ?
-      `).run(best.staffId, shift.id);
-      writeDb.close();
+      updatePrimary.run(best.staffId, shift.id);
       assigned++;
     } else {
       failed++;
@@ -123,8 +127,7 @@ export function autoAssignOpenShifts(weekStart: string, weekEnd: string) {
   }
 
   // Pass 2: Assign second staff for 2:1 students
-  const db2 = getDb();
-  const needsSecondStaff = db2.prepare(`
+  const needsSecondStaff = db.prepare(`
     SELECT * FROM shift
     WHERE date >= ? AND date <= ?
     AND assigned_staff_id IS NOT NULL
@@ -136,7 +139,6 @@ export function autoAssignOpenShifts(weekStart: string, weekEnd: string) {
     start_time: string; end_time: string; shift_type: string;
     needs_swim_support: number;
   }>;
-  db2.close();
 
   for (const shift of needsSecondStaff) {
     const ratio = ratioMap.get(shift.student_id) || 1;
@@ -152,20 +154,15 @@ export function autoAssignOpenShifts(weekStart: string, weekEnd: string) {
       excludeShiftId: shift.id,
     });
 
-    // Exclude the already-assigned primary staff
     const best = candidates.find(c => !c.excluded && c.totalScore >= 45 && c.staffId !== shift.assigned_staff_id);
     if (best) {
-      const writeDb = new Database(getDbPath());
-      writeDb.prepare(`
-        UPDATE shift SET second_staff_id = ?, updated_at = datetime('now')
-        WHERE id = ?
-      `).run(best.staffId, shift.id);
-      writeDb.close();
+      updateSecond.run(best.staffId, shift.id);
       assigned++;
     } else {
       failed++;
     }
   }
 
+  db.close();
   return { assigned, failed, total: openShifts.length + needsSecondStaff.filter(s => (ratioMap.get(s.student_id) || 1) >= 2).length };
 }

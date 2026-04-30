@@ -1,5 +1,6 @@
 import type { CandidateScore } from "@/types";
-import { getDb as _getDb } from "@/lib/db-utils";
+import { getSharedDb } from "@/lib/db-utils";
+import { toDateString } from "@/lib/utils";
 import {
   isStaffOnPto,
   isStaffAvailable,
@@ -18,7 +19,7 @@ import {
 import { MAX_SAME_STUDENT_PER_WEEK, MAX_SWIM_SHIFTS_PER_WEEK, SCORE_WEIGHTS as W, LOAD_THRESHOLDS } from "./rules";
 
 function getDb() {
-  return _getDb(true);
+  return getSharedDb();
 }
 
 interface ScoreShiftInput {
@@ -40,8 +41,7 @@ function getWeekBounds(date: string): { weekStart: string; weekEnd: string } {
   const sunday = new Date(monday);
   sunday.setDate(monday.getDate() + 6);
 
-  const fmt = (dt: Date) => dt.toISOString().split("T")[0];
-  return { weekStart: fmt(monday), weekEnd: fmt(sunday) };
+  return { weekStart: toDateString(monday), weekEnd: toDateString(sunday) };
 }
 
 export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
@@ -55,7 +55,6 @@ export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
   `).all() as Array<{
     id: number; name: string; can_work_overnight: number; can_cover_swim: number;
   }>;
-  db.close();
 
   const isOvernight = input.shiftType === "overnight";
   const isSwim = input.needsSwimSupport;

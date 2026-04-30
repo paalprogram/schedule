@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db-utils";
 import { detectWeekWarnings } from "@/lib/scheduling/conflicts";
 import { validateDateRange } from "@/lib/validation";
+import { toDateString } from "@/lib/utils";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -99,7 +100,7 @@ export async function GET(req: NextRequest) {
   const d = new Date(weekStart! + "T00:00:00");
   const end = new Date(weekEnd! + "T00:00:00");
   while (d <= end) {
-    dateSet.add(d.toISOString().split("T")[0]);
+    dateSet.add(toDateString(d));
     d.setDate(d.getDate() + 1);
   }
 

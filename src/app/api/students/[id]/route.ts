@@ -32,22 +32,23 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const db = getDb();
 
-  db.prepare(`
-    UPDATE student SET name = ?, active = ?, requires_swim_support = ?, staffing_ratio = ?, notes = ?, updated_at = datetime('now')
-    WHERE id = ?
-  `).run(body.name, body.active ? 1 : 0, body.requires_swim_support ? 1 : 0, body.staffing_ratio || 1, body.notes || null, id);
+  db.transaction(() => {
+    db.prepare(`
+      UPDATE student SET name = ?, active = ?, requires_swim_support = ?, staffing_ratio = ?, notes = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(body.name, body.active ? 1 : 0, body.requires_swim_support ? 1 : 0, body.staffing_ratio || 1, body.notes || null, id);
 
-  // Update training if provided
-  if (body.trained_staff_ids && Array.isArray(body.trained_staff_ids)) {
-    db.prepare("DELETE FROM staff_student_training WHERE student_id = ?").run(id);
-    const insertTraining = db.prepare(`
-      INSERT INTO staff_student_training (staff_id, student_id, approved, certified_date)
-      VALUES (?, ?, 1, date('now'))
-    `);
-    for (const staffId of body.trained_staff_ids) {
-      insertTraining.run(staffId, id);
+    if (body.trained_staff_ids && Array.isArray(body.trained_staff_ids)) {
+      db.prepare("DELETE FROM staff_student_training WHERE student_id = ?").run(id);
+      const insertTraining = db.prepare(`
+        INSERT INTO staff_student_training (staff_id, student_id, approved, certified_date)
+        VALUES (?, ?, 1, date('now'))
+      `);
+      for (const staffId of body.trained_staff_ids) {
+        insertTraining.run(staffId, id);
+      }
     }
-  }
+  })();
 
   const student = db.prepare("SELECT * FROM student WHERE id = ?").get(id);
   db.close();

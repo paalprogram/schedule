@@ -48,30 +48,32 @@ export async function POST(req: NextRequest) {
   if (validationError) return validationError;
 
   const db = getDb();
-  const result = db.prepare(`
-    INSERT INTO meeting (title, meeting_type, date, start_time, end_time, location, notes)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    body.title,
-    body.meeting_type || "team_meeting",
-    body.date,
-    body.start_time,
-    body.end_time,
-    body.location || null,
-    body.notes || null,
-  );
 
-  const meetingId = result.lastInsertRowid;
-
-  // Add attendees
-  if (body.staff_ids && Array.isArray(body.staff_ids)) {
-    const insert = db.prepare(
-      "INSERT OR IGNORE INTO meeting_attendee (meeting_id, staff_id, required) VALUES (?, ?, 1)"
+  const meetingId = db.transaction(() => {
+    const result = db.prepare(`
+      INSERT INTO meeting (title, meeting_type, date, start_time, end_time, location, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      body.title,
+      body.meeting_type || "team_meeting",
+      body.date,
+      body.start_time,
+      body.end_time,
+      body.location || null,
+      body.notes || null,
     );
-    for (const staffId of body.staff_ids) {
-      insert.run(meetingId, staffId);
+
+    if (body.staff_ids && Array.isArray(body.staff_ids)) {
+      const insert = db.prepare(
+        "INSERT OR IGNORE INTO meeting_attendee (meeting_id, staff_id, required) VALUES (?, ?, 1)"
+      );
+      for (const staffId of body.staff_ids) {
+        insert.run(result.lastInsertRowid, staffId);
+      }
     }
-  }
+
+    return result.lastInsertRowid;
+  })();
 
   const meeting = db.prepare("SELECT * FROM meeting WHERE id = ?").get(meetingId);
   db.close();
@@ -97,21 +99,22 @@ export async function PUT(req: NextRequest) {
   if (body.location !== undefined) { sets.push("location = ?"); params.push(body.location); }
   if (body.notes !== undefined) { sets.push("notes = ?"); params.push(body.notes); }
 
-  if (sets.length > 0) {
-    params.push(body.id);
-    db.prepare(`UPDATE meeting SET ${sets.join(", ")} WHERE id = ?`).run(...params);
-  }
-
-  // Update attendees if provided
-  if (body.staff_ids && Array.isArray(body.staff_ids)) {
-    db.prepare("DELETE FROM meeting_attendee WHERE meeting_id = ?").run(body.id);
-    const insert = db.prepare(
-      "INSERT INTO meeting_attendee (meeting_id, staff_id, required) VALUES (?, ?, 1)"
-    );
-    for (const staffId of body.staff_ids) {
-      insert.run(body.id, staffId);
+  db.transaction(() => {
+    if (sets.length > 0) {
+      params.push(body.id);
+      db.prepare(`UPDATE meeting SET ${sets.join(", ")} WHERE id = ?`).run(...params);
     }
-  }
+
+    if (body.staff_ids && Array.isArray(body.staff_ids)) {
+      db.prepare("DELETE FROM meeting_attendee WHERE meeting_id = ?").run(body.id);
+      const insert = db.prepare(
+        "INSERT INTO meeting_attendee (meeting_id, staff_id, required) VALUES (?, ?, 1)"
+      );
+      for (const staffId of body.staff_ids) {
+        insert.run(body.id, staffId);
+      }
+    }
+  })();
 
   const meeting = db.prepare("SELECT * FROM meeting WHERE id = ?").get(body.id);
   db.close();
@@ -126,8 +129,10 @@ export async function DELETE(req: NextRequest) {
   }
 
   const db = getDb();
-  db.prepare("DELETE FROM meeting_attendee WHERE meeting_id = ?").run(parseInt(id));
-  const result = db.prepare("DELETE FROM meeting WHERE id = ?").run(parseInt(id));
+  const result = db.transaction(() => {
+    db.prepare("DELETE FROM meeting_attendee WHERE meeting_id = ?").run(parseInt(id));
+    return db.prepare("DELETE FROM meeting WHERE id = ?").run(parseInt(id));
+  })();
   db.close();
 
   if (result.changes === 0) {

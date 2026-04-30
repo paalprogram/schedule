@@ -34,8 +34,10 @@ export async function POST(req: NextRequest) {
   }
 
   // Execute deletion
-  db.prepare(`DELETE FROM callout WHERE shift_id IN (${placeholders})`).run(...shiftIds);
-  const result = db.prepare(`DELETE FROM shift WHERE id IN (${placeholders})`).run(...shiftIds);
+  const result = db.transaction(() => {
+    db.prepare(`DELETE FROM callout WHERE shift_id IN (${placeholders})`).run(...shiftIds);
+    return db.prepare(`DELETE FROM shift WHERE id IN (${placeholders})`).run(...shiftIds);
+  })();
   db.close();
 
   return NextResponse.json({ deleted: result.changes });

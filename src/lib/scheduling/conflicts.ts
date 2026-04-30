@@ -1,9 +1,10 @@
 import type { ScheduleWarning } from "@/types";
-import { getDb as _getDb } from "@/lib/db-utils";
+import { getSharedDb } from "@/lib/db-utils";
+import { toDateString } from "@/lib/utils";
 import { MAX_SAME_STUDENT_PER_WEEK, MAX_SWIM_SHIFTS_PER_WEEK } from "./rules";
 
 function getDb() {
-  return _getDb(true);
+  return getSharedDb();
 }
 
 /** Split a time range into segments — overnight ranges become two segments split at midnight */
@@ -30,7 +31,6 @@ export function getStaffShiftsForWeek(staffId: number, weekStart: string, weekEn
     AND date >= ? AND date <= ?
     AND status IN ('scheduled', 'covered')
   `).all(staffId, staffId, weekStart, weekEnd);
-  db.close();
   return shifts as Array<{
     id: number; student_id: number; date: string;
     start_time: string; end_time: string;
@@ -49,7 +49,6 @@ export function getStaffStudentCountForWeek(
     AND date >= ? AND date <= ?
     AND status IN ('scheduled', 'covered')
   `).get(staffId, staffId, studentId, weekStart, weekEnd) as { count: number };
-  db.close();
   return result.count;
 }
 
@@ -62,7 +61,6 @@ export function getStaffSwimCountForWeek(staffId: number, weekStart: string, wee
     AND date >= ? AND date <= ?
     AND status IN ('scheduled', 'covered')
   `).get(staffId, staffId, weekStart, weekEnd) as { count: number };
-  db.close();
   return result.count;
 }
 
@@ -72,7 +70,6 @@ export function isStaffOnPto(staffId: number, date: string): boolean {
     SELECT COUNT(*) as count FROM staff_pto
     WHERE staff_id = ? AND start_date <= ? AND end_date >= ?
   `).get(staffId, date, date) as { count: number };
-  db.close();
   return result.count > 0;
 }
 
@@ -85,7 +82,6 @@ export function isStaffAvailable(staffId: number, dayOfWeek: number, startTime: 
     SELECT day_of_week, start_time, end_time FROM staff_availability
     WHERE staff_id = ? AND day_of_week IN (?, ?)
   `).all(staffId, dayOfWeek, nextDay) as Array<{ day_of_week: number; start_time: string; end_time: string }>;
-  db.close();
 
   if (slots.length === 0) return false;
 
@@ -145,7 +141,7 @@ export function hasOverlappingShift(
   prevDate.setDate(dateObj.getDate() - 1);
   const nextDate = new Date(dateObj);
   nextDate.setDate(dateObj.getDate() + 1);
-  const fmt = (d: Date) => d.toISOString().split("T")[0];
+  const fmt = toDateString;
 
   // Dates to query: always include the shift's date.
   // If overnight, also check the next day (morning portion may overlap).
@@ -155,6 +151,10 @@ export function hasOverlappingShift(
   const db = getDb();
   const placeholders = datesToCheck.map(() => '?').join(',');
 
+  // Only 'scheduled' and 'covered' shifts occupy a staff member. 'called_out'
+  // and 'open' shifts are intentionally excluded — when someone is called out
+  // their slot is freed up, so it should not block reassigning that same staff
+  // (or anyone else) to another shift in that window.
   const shifts = db.prepare(`
     SELECT id, date, start_time, end_time FROM shift
     WHERE (assigned_staff_id = ? OR second_staff_id = ?) AND date IN (${placeholders})
@@ -163,7 +163,6 @@ export function hasOverlappingShift(
   `).all(staffId, staffId, ...datesToCheck, ...(excludeShiftId ? [excludeShiftId] : [])) as Array<{
     id: number; date: string; start_time: string; end_time: string;
   }>;
-  db.close();
 
   return shifts.some(s => {
     const existingIsOvernight = s.end_time <= s.start_time;
@@ -202,7 +201,7 @@ export function getOverlappingAssignments(
   prevDate.setDate(dateObj.getDate() - 1);
   const nextDate = new Date(dateObj);
   nextDate.setDate(dateObj.getDate() + 1);
-  const fmt = (d: Date) => d.toISOString().split("T")[0];
+  const fmt = toDateString;
   const datesToCheck = [fmt(prevDate), date, fmt(nextDate)];
 
   const db = getDb();
@@ -219,7 +218,6 @@ export function getOverlappingAssignments(
     id: number; date: string; start_time: string; end_time: string;
     student_id: number; student_name: string;
   }>;
-  db.close();
 
   const result: Array<{ shiftId: number; studentId: number; studentName: string; startTime: string; endTime: string }> = [];
   for (const s of shifts) {
@@ -255,7 +253,6 @@ export function getStaffMeetingConflict(staffId: number, date: string, startTime
     JOIN meeting_attendee ma ON ma.meeting_id = m.id
     WHERE ma.staff_id = ? AND m.date = ?
   `).all(staffId, date) as Array<{ title: string; start_time: string; end_time: string }>;
-  db.close();
 
   for (const m of meetings) {
     if (timesOverlap(startTime, endTime, m.start_time, m.end_time)) {
@@ -271,7 +268,6 @@ export function isStudentAbsent(studentId: number, date: string): boolean {
     SELECT COUNT(*) as count FROM student_absence
     WHERE student_id = ? AND date = ?
   `).get(studentId, date) as { count: number };
-  db.close();
   return result.count > 0;
 }
 
@@ -285,7 +281,6 @@ export function hasStaffDedicatedRole(staffId: number, date: string): boolean {
     AND (start_date IS NULL OR start_date <= ?)
     AND (end_date IS NULL OR end_date >= ?)
   `).get(staffId, dayOfWeek, date, date) as { count: number };
-  db.close();
   return result.count > 0;
 }
 
@@ -295,18 +290,20 @@ export function getStaffStudentPreference(staffId: number, studentId: number): s
     SELECT level FROM staff_student_preference
     WHERE staff_id = ? AND student_id = ?
   `).get(staffId, studentId) as { level: string } | undefined;
-  db.close();
   return result?.level ?? null;
 }
 
+// Onboarding records with NULL scheduled_date are "pending — not booked for a
+// day yet" and must NOT match any date. Only records explicitly scheduled for
+// `date` apply, otherwise a single ungated record would exclude that staff
+// from every other student forever.
 export function getStaffOnboardingForDate(staffId: number, studentId: number, date: string): { currentDay: number; totalDays: number } | null {
   const db = getDb();
   const result = db.prepare(`
     SELECT current_day, total_days FROM staff_onboarding
     WHERE staff_id = ? AND student_id = ? AND completed = 0
-    AND (scheduled_date IS NULL OR scheduled_date = ?)
+    AND scheduled_date = ?
   `).get(staffId, studentId, date) as { current_day: number; total_days: number } | undefined;
-  db.close();
   if (!result) return null;
   return { currentDay: result.current_day, totalDays: result.total_days };
 }
@@ -323,12 +320,11 @@ export function getActiveOnboardingForDate(date: string): Array<{
     JOIN staff s ON o.staff_id = s.id
     JOIN student st ON o.student_id = st.id
     WHERE o.completed = 0
-    AND (o.scheduled_date IS NULL OR o.scheduled_date = ?)
+    AND o.scheduled_date = ?
   `).all(date) as Array<{
     staff_id: number; student_id: number; current_day: number; total_days: number;
     staff_name: string; student_name: string;
   }>;
-  db.close();
   return rows.map(r => ({
     staffId: r.staff_id,
     studentId: r.student_id,
@@ -345,7 +341,6 @@ export function isStaffTrained(staffId: number, studentId: number): boolean {
     SELECT COUNT(*) as count FROM staff_student_training
     WHERE staff_id = ? AND student_id = ? AND approved = 1
   `).get(staffId, studentId) as { count: number };
-  db.close();
   return result.count > 0;
 }
 
@@ -637,6 +632,5 @@ export function detectWeekWarnings(weekStart: string, weekEnd: string): Schedule
     }
   }
 
-  db.close();
   return warnings;
 }
