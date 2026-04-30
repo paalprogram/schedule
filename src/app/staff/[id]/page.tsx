@@ -3,7 +3,8 @@ import { useState, useEffect, use } from "react";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { ArrowLeft, Plus, Trash2, Edit2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Edit2, AlertTriangle } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { ErrorBanner } from "@/components/ui/error-banner";
 import Link from "next/link";
 import { SHORT_DAYS } from "@/lib/utils";
@@ -23,6 +24,7 @@ interface StaffDetail {
 
 export default function StaffDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const { toast } = useToast();
   const confirm = useConfirm();
   const [staff, setStaff] = useState<StaffDetail | null>(null);
@@ -166,6 +168,25 @@ export default function StaffDetailPage({ params }: { params: Promise<{ id: stri
     reload();
   }
 
+  async function handleHardDelete() {
+    if (!staff) return;
+    const ok = await confirm({
+      title: "Permanently delete this staff member?",
+      message: `This permanently removes ${staff.name} and all of their data:\n\n• Availability, PTO, training, preferences, onboarding records\n• Meeting attendance and dedicated-role assignments\n• Callout records where they were the original staff\n\nFuture and current shifts they're assigned to will have their slot freed up (other history preserved). This cannot be undone.\n\nIf you only want to stop scheduling them for now, use the Active checkbox instead.`,
+      confirmText: "Delete Permanently",
+      variant: "danger",
+      requireTypedText: "DELETE",
+    });
+    if (!ok) return;
+    const res = await fetch(`/api/staff/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      toast("Failed to delete staff member", "warning");
+      return;
+    }
+    toast(`${staff.name} permanently deleted`, "warning");
+    router.push("/staff");
+  }
+
   if (loadError) return (
     <div className="py-8">
       <ErrorBanner message="Failed to load staff profile." onRetry={reload} />
@@ -233,6 +254,27 @@ export default function StaffDetailPage({ params }: { params: Promise<{ id: stri
             </div>
             <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">Save Changes</button>
           </form>
+
+          {/* Danger zone — irreversible permanent delete */}
+          <div className="mt-6 pt-6 border-t border-red-100">
+            <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <AlertTriangle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-red-900">Danger Zone</h3>
+                <p className="text-xs text-red-700 mt-1 mb-3">
+                  Permanently delete this staff member and all of their data. This cannot be undone.
+                  To stop scheduling them without losing data, uncheck Active above instead.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleHardDelete}
+                  className="flex items-center gap-1.5 bg-red-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-red-700"
+                >
+                  <Trash2 size={14} /> Delete Permanently
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Sidebar */}

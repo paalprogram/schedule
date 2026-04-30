@@ -10,13 +10,14 @@ import {
   getStaffStudentCountForWeek,
   getStaffSwimCountForWeek,
   getStaffShiftsForWeek,
+  getStaffShiftCountsForRange,
   hasStaffDedicatedRole,
   getStaffStudentPreference,
   getStaffOnboardingForDate,
   getActiveOnboardingForDate,
   getStaffMeetingConflict,
 } from "./conflicts";
-import { MAX_SAME_STUDENT_PER_WEEK, MAX_SWIM_SHIFTS_PER_WEEK, SCORE_WEIGHTS as W, LOAD_THRESHOLDS } from "./rules";
+import { MAX_SAME_STUDENT_PER_WEEK, MAX_SWIM_SHIFTS_PER_WEEK, SCORE_WEIGHTS as W, LOAD_THRESHOLDS, ROTATION } from "./rules";
 
 function getDb() {
   return getSharedDb();
@@ -69,6 +70,30 @@ export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
   const avgSwim = swimCounts.length > 0
     ? swimCounts.reduce((a, b) => a + b, 0) / swimCounts.length
     : 0;
+
+  // Cross-week rotation: trailing 4-week shift counts per staff. Used to nudge
+  // assignments toward under-utilized staff and away from over-utilized ones.
+  // The bonus/penalty is small (+/-5) — it's a tiebreaker, not a dominant signal.
+  const inputDate = new Date(input.date + "T00:00:00");
+  const lookbackStart = new Date(inputDate);
+  lookbackStart.setDate(inputDate.getDate() - ROTATION.LOOKBACK_DAYS);
+  const lookbackEnd = new Date(inputDate);
+  lookbackEnd.setDate(inputDate.getDate() - 1); // exclude today; we're deciding today
+  const trailingCounts = getStaffShiftCountsForRange(toDateString(lookbackStart), toDateString(lookbackEnd));
+
+  // Median across all active staff (including 0 for those without history),
+  // so brand-new or unused staff genuinely look under-utilized.
+  let rotationMedian = 0;
+  let rotationActive = false;
+  if (allStaff.length >= ROTATION.MIN_STAFF_FOR_ROTATION) {
+    const sortedCounts = allStaff.map(s => trailingCounts.get(s.id) ?? 0).sort((a, b) => a - b);
+    const mid = Math.floor(sortedCounts.length / 2);
+    rotationMedian = sortedCounts.length % 2 === 0
+      ? (sortedCounts[mid - 1] + sortedCounts[mid]) / 2
+      : sortedCounts[mid];
+    // Only activate when at least one staff has any history — otherwise median is 0 and no comparisons are meaningful.
+    if (rotationMedian > 0) rotationActive = true;
+  }
 
   const candidates: CandidateScore[] = allStaff.map((s, idx) => {
     const tags: string[] = [];
@@ -159,6 +184,12 @@ export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
     const overnightEligible = !!s.can_work_overnight;
     const swimEligible = !!s.can_cover_swim;
     const preferenceLevel = getStaffStudentPreference(s.id, input.studentId) as "preferred" | "neutral" | "avoid" | null;
+    const trailingCount = trailingCounts.get(s.id) ?? 0;
+    let rotationStatus: "under" | "over" | null = null;
+    if (rotationActive) {
+      if (trailingCount < rotationMedian * ROTATION.UNDER_USED_RATIO) rotationStatus = "under";
+      else if (trailingCount > rotationMedian * ROTATION.OVER_USED_RATIO) rotationStatus = "over";
+    }
 
     // Preference tags/warnings
     if (preferenceLevel === "preferred") tags.push("preferred");
@@ -177,6 +208,8 @@ export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
     if (isSwim && swimCount > avgSwim) tags.push("swim-heavy");
     if (isOvernight && overnightEligible) tags.push("overnight OK");
     if (isOvernight && !overnightEligible) tags.push("no overnight");
+    if (rotationStatus === "under") tags.push("under-used 4w");
+    else if (rotationStatus === "over") tags.push("over-used 4w");
 
     // Build warnings
     if (!trained) warnings.push("Not trained on this student");
@@ -206,17 +239,15 @@ export function scoreCandidates(input: ScoreShiftInput): CandidateScore[] {
       if (totalShiftsThisWeek <= LOAD_THRESHOLDS.LOW) score += W.LOAD_LOW;
       else if (totalShiftsThisWeek <= LOAD_THRESHOLDS.MEDIUM) score += W.LOAD_MEDIUM;
 
-      if (isOvernight) {
-        score += overnightEligible ? W.OVERNIGHT_ELIGIBLE : 0;
-      } else {
-        score += W.OVERNIGHT_ELIGIBLE;
-      }
+      // Overnight/swim eligibility only contributes when the shift actually
+      // requires that capability — no filler points on unrelated shifts, so
+      // the auto-assign threshold means the same thing across shift types.
+      if (isOvernight && overnightEligible) score += W.OVERNIGHT_ELIGIBLE;
+      if (isSwim && swimEligible) score += W.SWIM_ELIGIBLE;
 
-      if (isSwim) {
-        score += swimEligible ? W.SWIM_ELIGIBLE : 0;
-      } else {
-        score += W.SWIM_ELIGIBLE;
-      }
+      // Cross-week rotation nudge
+      if (rotationStatus === "under") score += W.ROTATION_UNDER_USED;
+      else if (rotationStatus === "over") score += W.ROTATION_OVER_USED;
 
       // Onboarding bonus — highest priority assignment
       if (onboardingDay !== null) score += W.ONBOARDING_THIS_STUDENT;

@@ -71,11 +71,62 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   return NextResponse.json(staff);
 }
 
+// Hard-delete a staff member.
+//
+// All staff-owned rows (availability, PTO, training, dedicated roles,
+// preferences, onboarding, meeting attendance, and any callouts they're tied to)
+// are removed. Shift assignments are preserved as records but the staff slot is
+// nulled — if a shift loses its primary staff and had no second staff, it goes
+// back to status='open'. Wrapped in a transaction so a failure mid-delete rolls
+// back cleanly.
+//
+// Use the soft-archive flow on the staff detail page if you only want to mark
+// someone inactive; this endpoint is permanent.
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const staffId = parseInt(id);
+  if (!Number.isInteger(staffId) || staffId <= 0) {
+    return NextResponse.json({ error: "Invalid staff ID" }, { status: 400 });
+  }
+
   const db = getDb();
-  // Soft delete - mark inactive
-  db.prepare("UPDATE staff SET active = 0, updated_at = datetime('now') WHERE id = ?").run(id);
+  const exists = db.prepare("SELECT id FROM staff WHERE id = ?").get(staffId);
+  if (!exists) {
+    db.close();
+    return NextResponse.json({ error: "Staff not found" }, { status: 404 });
+  }
+
+  db.transaction(() => {
+    // Free up shift slots that point to this staff.
+    db.prepare(`
+      UPDATE shift SET assigned_staff_id = NULL,
+        status = CASE WHEN second_staff_id IS NULL THEN 'open' ELSE status END,
+        updated_at = datetime('now')
+      WHERE assigned_staff_id = ?
+    `).run(staffId);
+    db.prepare(`
+      UPDATE shift SET second_staff_id = NULL, updated_at = datetime('now')
+      WHERE second_staff_id = ?
+    `).run(staffId);
+
+    // Callouts: original_staff_id is NOT NULL so we can't preserve history without
+    // the staff row. Drop them. replacement_staff_id refs in unrelated callouts
+    // can be nulled.
+    db.prepare("UPDATE callout SET replacement_staff_id = NULL WHERE replacement_staff_id = ?").run(staffId);
+    db.prepare("DELETE FROM callout WHERE original_staff_id = ?").run(staffId);
+
+    // Owned data — straightforward deletes.
+    db.prepare("DELETE FROM staff_availability WHERE staff_id = ?").run(staffId);
+    db.prepare("DELETE FROM staff_pto WHERE staff_id = ?").run(staffId);
+    db.prepare("DELETE FROM staff_student_training WHERE staff_id = ?").run(staffId);
+    db.prepare("DELETE FROM staff_dedicated_role WHERE staff_id = ?").run(staffId);
+    db.prepare("DELETE FROM staff_student_preference WHERE staff_id = ?").run(staffId);
+    db.prepare("DELETE FROM staff_onboarding WHERE staff_id = ?").run(staffId);
+    db.prepare("DELETE FROM meeting_attendee WHERE staff_id = ?").run(staffId);
+
+    db.prepare("DELETE FROM staff WHERE id = ?").run(staffId);
+  })();
+
   db.close();
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ deleted: true });
 }

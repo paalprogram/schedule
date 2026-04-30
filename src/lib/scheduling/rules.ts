@@ -18,6 +18,18 @@ export const LOAD_THRESHOLDS = {
   MEDIUM: 6,
 } as const;
 
+/** Cross-week rotation: how far back to look and how strict the bands are */
+export const ROTATION = {
+  /** Days of trailing history to consider (4 weeks) */
+  LOOKBACK_DAYS: 28,
+  /** Below this fraction of the team median, a staff is "under-used" → bonus */
+  UNDER_USED_RATIO: 0.75,
+  /** Above this fraction of the team median, a staff is "over-used" → penalty */
+  OVER_USED_RATIO: 1.25,
+  /** Minimum number of staff with shift history needed to compute a meaningful median */
+  MIN_STAFF_FOR_ROTATION: 3,
+} as const;
+
 /** Point values used by the candidate scorer */
 export const SCORE_WEIGHTS = {
   TRAINED: 40,
@@ -42,6 +54,10 @@ export const SCORE_WEIGHTS = {
   PREFERENCE_AVOID: -35,
 
   ONBOARDING_THIS_STUDENT: 60,
+
+  /** Cross-week rotation — small bonus/penalty so under-utilized staff get a tiebreaker edge */
+  ROTATION_UNDER_USED: 5,
+  ROTATION_OVER_USED: -5,
 
   PENALTY_OVER_ASSIGNED: -20,
   PENALTY_UNTRAINED: -40,

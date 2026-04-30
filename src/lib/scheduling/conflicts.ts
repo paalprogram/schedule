@@ -23,6 +23,29 @@ export function timesOverlap(
   return aSegs.some(a => bSegs.some(b => a[0] < b[1] && b[0] < a[1]));
 }
 
+/**
+ * Per-staff shift count for an arbitrary date range, returned as a Map.
+ * Used by the scorer to compute trailing-window rotation fairness in one query
+ * rather than N separate per-staff lookups.
+ */
+export function getStaffShiftCountsForRange(startDate: string, endDate: string): Map<number, number> {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT staff_id, COUNT(*) as count FROM (
+      SELECT assigned_staff_id as staff_id FROM shift
+      WHERE assigned_staff_id IS NOT NULL
+      AND date >= ? AND date <= ?
+      AND status IN ('scheduled', 'covered')
+      UNION ALL
+      SELECT second_staff_id as staff_id FROM shift
+      WHERE second_staff_id IS NOT NULL
+      AND date >= ? AND date <= ?
+      AND status IN ('scheduled', 'covered')
+    ) GROUP BY staff_id
+  `).all(startDate, endDate, startDate, endDate) as Array<{ staff_id: number; count: number }>;
+  return new Map(rows.map(r => [r.staff_id, r.count]));
+}
+
 export function getStaffShiftsForWeek(staffId: number, weekStart: string, weekEnd: string) {
   const db = getDb();
   const shifts = db.prepare(`

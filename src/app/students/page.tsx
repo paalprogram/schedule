@@ -14,14 +14,23 @@ export default function StudentsPage() {
   const { toast } = useToast();
   const [showAdd, setShowAdd] = useState(false);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"active" | "archived" | "all">("active");
 
   const filtered = useMemo(() => {
     if (!students) return [];
-    if (!search) return students;
-    return students.filter((s: Record<string, unknown>) =>
-      (s.name as string).toLowerCase().includes(search.toLowerCase())
-    );
-  }, [students, search]);
+    return students.filter((s: Record<string, unknown>) => {
+      const nameMatch = !search || (s.name as string).toLowerCase().includes(search.toLowerCase());
+      const statusMatch =
+        statusFilter === "all" ? true :
+        statusFilter === "active" ? !!s.active : !s.active;
+      return nameMatch && statusMatch;
+    });
+  }, [students, search, statusFilter]);
+
+  const archivedCount = useMemo(
+    () => (students || []).filter((s: Record<string, unknown>) => !s.active).length,
+    [students],
+  );
 
   async function handleAdd(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -57,8 +66,8 @@ export default function StudentsPage() {
 
       {studentsError && <ErrorBanner message="Failed to load student list." onRetry={() => mutate()} />}
 
-      <div className="mb-4">
-        <div className="relative max-w-xs">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 mb-4">
+        <div className="relative flex-1 sm:max-w-xs">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             value={search}
@@ -66,6 +75,21 @@ export default function StudentsPage() {
             placeholder="Search by name..."
             className="w-full border rounded-lg pl-9 pr-3 py-2 text-sm"
           />
+        </div>
+        <div className="flex items-center gap-1 text-sm">
+          {(["active", "archived", "all"] as const).map(s => (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className={`px-3 py-1.5 rounded-lg capitalize ${
+                statusFilter === s
+                  ? "bg-blue-600 text-white"
+                  : "bg-white border text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              {s} {s === "archived" && archivedCount > 0 ? `(${archivedCount})` : ""}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -95,7 +119,7 @@ export default function StudentsPage() {
                 <td className="px-4 py-3 text-sm text-gray-600">
                   {(s.trained_staff_ids as string) ? (s.trained_staff_ids as string).split(",").length + " staff" : "0 staff"}
                 </td>
-                <td className="px-4 py-3"><Badge variant={s.active ? "success" : "default"}>{s.active ? "Active" : "Inactive"}</Badge></td>
+                <td className="px-4 py-3"><Badge variant={s.active ? "success" : "default"}>{s.active ? "Active" : "Archived"}</Badge></td>
                 <td className="px-4 py-3"><Link href={`/students/${s.id}`} className="text-blue-600 hover:text-blue-800"><Edit2 size={16} /></Link></td>
               </tr>
             ))}
@@ -110,7 +134,7 @@ export default function StudentsPage() {
           <Link key={s.id as number} href={`/students/${s.id}`} className="block bg-white rounded-lg shadow-sm border p-3 active:bg-gray-50">
             <div className="flex items-center justify-between mb-1">
               <span className="font-medium text-gray-900">{s.name as string}</span>
-              <Badge variant={s.active ? "success" : "default"}>{s.active ? "Active" : "Inactive"}</Badge>
+              <Badge variant={s.active ? "success" : "default"}>{s.active ? "Active" : "Archived"}</Badge>
             </div>
             <div className="flex items-center gap-2 text-xs text-gray-500 flex-wrap">
               {s.requires_swim_support ? <Badge variant="info" className="text-[10px]">Swim</Badge> : null}

@@ -196,7 +196,20 @@ export function validateCalloutCreate(body: Record<string, unknown>) {
 export function validateTemplateCreate(body: Record<string, unknown>) {
   const errors: ValidationError[] = [];
   if (!isPositiveInt(body.student_id)) errors.push({ field: "student_id", message: "Valid student ID required" });
-  if (!isDayOfWeek(body.day_of_week)) errors.push({ field: "day_of_week", message: "Must be 0-6 (Sun-Sat)" });
+  // day_of_week accepts a single number or an array of numbers (multi-day templates)
+  if (Array.isArray(body.day_of_week)) {
+    if (body.day_of_week.length === 0) {
+      errors.push({ field: "day_of_week", message: "At least one day is required" });
+    } else {
+      for (let i = 0; i < body.day_of_week.length; i++) {
+        if (!isDayOfWeek(body.day_of_week[i])) {
+          errors.push({ field: `day_of_week[${i}]`, message: "Must be 0-6 (Sun-Sat)" });
+        }
+      }
+    }
+  } else if (!isDayOfWeek(body.day_of_week)) {
+    errors.push({ field: "day_of_week", message: "Must be 0-6 (Sun-Sat) or an array of days" });
+  }
   if (!isValidTime(body.start_time)) errors.push({ field: "start_time", message: "Valid time required (HH:MM)" });
   if (!isValidTime(body.end_time)) errors.push({ field: "end_time", message: "Valid time required (HH:MM)" });
   if (body.shift_type !== undefined && !isValidShiftType(body.shift_type)) errors.push({ field: "shift_type", message: "Must be regular or overnight" });

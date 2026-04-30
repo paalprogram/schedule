@@ -4,7 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { ArrowLeft, Plus, Trash2, Edit2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Edit2, Archive, ArchiveRestore } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { ErrorBanner } from "@/components/ui/error-banner";
 import Link from "next/link";
 import { SHORT_DAYS } from "@/lib/utils";
@@ -23,6 +24,7 @@ interface StudentDetail {
 
 export default function StudentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const { toast } = useToast();
   const confirm = useConfirm();
   const [student, setStudent] = useState<StudentDetail | null>(null);
@@ -53,13 +55,44 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: form.get("name"),
-        active: form.get("active") === "on",
+        active: !!student?.active, // preserved by archive/restore actions, not toggled here
         requires_swim_support: form.get("requires_swim_support") === "on",
         staffing_ratio: parseInt(form.get("staffing_ratio") as string) || 1,
         notes: form.get("notes") || null,
       }),
     });
     toast("Student profile saved");
+    reload();
+  }
+
+  async function handleArchive() {
+    if (!student) return;
+    const ok = await confirm({
+      title: "Archive student?",
+      message: `Archiving ${student.name} will:\n\n• Hide them from scheduling and the active student list\n• Stop new shifts from being generated for them\n• Preserve all historical shifts, callouts, and reports\n\nYou can restore them at any time from the archived list. No data is deleted.`,
+      confirmText: "Archive Student",
+      variant: "danger",
+    });
+    if (!ok) return;
+    await fetch(`/api/students/${id}`, { method: "DELETE" });
+    toast(`${student.name} archived`, "warning");
+    router.push("/students");
+  }
+
+  async function handleRestore() {
+    if (!student) return;
+    await fetch(`/api/students/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: student.name,
+        active: true,
+        requires_swim_support: !!student.requires_swim_support,
+        staffing_ratio: student.staffing_ratio || 1,
+        notes: student.notes,
+      }),
+    });
+    toast(`${student.name} restored`);
     reload();
   }
 
@@ -84,31 +117,45 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
   async function handleTemplateSave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
-    const body = {
-      student_id: parseInt(id),
-      day_of_week: parseInt(form.get("day_of_week") as string),
-      start_time: form.get("start_time"),
-      end_time: form.get("end_time"),
-      shift_type: form.get("shift_type"),
-      activity_type: form.get("activity_type"),
-      needs_swim_support: form.get("needs_swim_support") === "on",
-      notes: form.get("notes") || null,
-    };
+    const selectedDays = form.getAll("days").map(d => parseInt(d as string));
 
     if (editingTemplate) {
+      // Edit only modifies a single existing row — uses the legacy single-day shape.
       await fetch(`/api/templates/${editingTemplate.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          student_id: parseInt(id),
+          day_of_week: selectedDays[0] ?? editingTemplate.day_of_week,
+          start_time: form.get("start_time"),
+          end_time: form.get("end_time"),
+          shift_type: form.get("shift_type"),
+          activity_type: form.get("activity_type"),
+          needs_swim_support: form.get("needs_swim_support") === "on",
+          notes: form.get("notes") || null,
+        }),
       });
       toast("Shift template updated");
     } else {
+      if (selectedDays.length === 0) {
+        toast("Pick at least one day", "warning");
+        return;
+      }
       await fetch("/api/templates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          student_id: parseInt(id),
+          day_of_week: selectedDays,
+          start_time: form.get("start_time"),
+          end_time: form.get("end_time"),
+          shift_type: form.get("shift_type"),
+          activity_type: form.get("activity_type"),
+          needs_swim_support: form.get("needs_swim_support") === "on",
+          notes: form.get("notes") || null,
+        }),
       });
-      toast("Shift template created");
+      toast(selectedDays.length > 1 ? `${selectedDays.length} shift templates created` : "Shift template created");
     }
 
     setShowTemplate(false);
@@ -149,11 +196,10 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
                 <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
                 <input name="name" defaultValue={student.name} required className="w-full border rounded-lg px-3 py-2 text-sm" />
               </div>
-              <div className="flex gap-6">
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" name="active" defaultChecked={!!student.active} className="rounded" />
-                  Active
-                </label>
+              <div className="flex gap-6 flex-wrap items-center">
+                <Badge variant={student.active ? "success" : "default"}>
+                  {student.active ? "Active" : "Archived"}
+                </Badge>
                 <label className="flex items-center gap-2 text-sm">
                   <input type="checkbox" name="requires_swim_support" defaultChecked={!!student.requires_swim_support} className="rounded" />
                   Requires Swim Support
@@ -170,7 +216,26 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
                 <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
                 <textarea name="notes" defaultValue={student.notes ?? ""} className="w-full border rounded-lg px-3 py-2 text-sm" rows={2} />
               </div>
-              <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">Save Changes</button>
+              <div className="flex items-center justify-between pt-2 border-t">
+                <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">Save Changes</button>
+                {student.active ? (
+                  <button
+                    type="button"
+                    onClick={handleArchive}
+                    className="flex items-center gap-1.5 text-red-600 hover:text-red-700 text-sm font-medium"
+                  >
+                    <Archive size={14} /> Archive Student
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleRestore}
+                    className="flex items-center gap-1.5 text-green-600 hover:text-green-700 text-sm font-medium"
+                  >
+                    <ArchiveRestore size={14} /> Restore Student
+                  </button>
+                )}
+              </div>
             </form>
           </div>
 
@@ -282,12 +347,36 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
       >
         <form onSubmit={handleTemplateSave} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Day of Week</label>
-            <select name="day_of_week" defaultValue={editingTemplate?.day_of_week ?? 1} className="w-full border rounded-lg px-3 py-2 text-sm">
-              {SHORT_DAYS.map((day, i) => (
-                <option key={i} value={i}>{day} ({["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][i]})</option>
-              ))}
-            </select>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              {editingTemplate ? "Day of Week" : "Days (pick one or more — one template will be created per day)"}
+            </label>
+            {editingTemplate ? (
+              <select name="days" defaultValue={editingTemplate.day_of_week} className="w-full border rounded-lg px-3 py-2 text-sm">
+                {SHORT_DAYS.map((day, i) => (
+                  <option key={i} value={i}>{day} ({["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][i]})</option>
+                ))}
+              </select>
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-x-4 gap-y-2">
+                  {SHORT_DAYS.map((day, i) => (
+                    <label key={i} className="flex items-center gap-1.5 text-sm">
+                      <input
+                        type="checkbox"
+                        name="days"
+                        value={i}
+                        defaultChecked={i >= 1 && i <= 5}
+                        className="rounded"
+                      />
+                      {day}
+                    </label>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-500 mt-1.5">
+                  Defaults to Mon–Fri for indefinite weekday schedules. Uncheck days the student isn&rsquo;t here.
+                </p>
+              </>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>

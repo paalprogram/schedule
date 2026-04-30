@@ -15,30 +15,47 @@ A staff scheduling web application designed specifically for schools and program
 
 ## How Scheduling Logic Works
 
-Staff assignment suggestions use a **rule-based scoring engine** (0-100 points per candidate):
+Staff assignment suggestions use a **rule-based scoring engine**. Scores are unbounded — typical "good" candidates land in the 80–115 range and onboarding candidates often score 140+. Auto-assign accepts a candidate at score ≥ 45.
 
-### Hard Filters (automatic exclusion)
-- Staff inactive, on PTO, has overlapping shift, or not available at that time
+### Hard Filters (auto mode)
+A candidate is excluded outright when any of these are true:
+- Has a dedicated role active that day
+- Currently onboarding with a different student on this date
+- On PTO
+- Already has an overlapping shift (same day or wrapping midnight)
+- Has a meeting that overlaps the shift window
+- Not trained on this student
 
-### Scoring Factors
+In manual mode the last three become warnings instead of exclusions.
+
+### Scoring Factors (positive)
 | Factor | Points |
 |--------|--------|
 | Trained on student | +40 |
-| Available during shift hours | +15 |
-| Same-student count this week < 2 | +15 |
-| Swim load balance (if swim shift) | +10 |
-| Overall weekly assignment load | +10 |
-| Overnight eligible (if overnight) | +5 |
-| Swim certified (if swim shift) | +5 |
+| Fully available during shift hours | +15 (or +5 outside availability) |
+| Same student 0× this week | +15 |
+| Same student 1× this week | +10 |
+| Swim load below team average (swim shift only) | +10 |
+| Swim load near average (swim shift only) | +5 |
+| Non-swim shift | +10 |
+| Total weekly shifts ≤ 4 | +15 |
+| Total weekly shifts ≤ 6 | +5 |
+| Overnight eligible (overnight shift only) | +5 |
+| Swim certified (swim shift only) | +5 |
+| Cross-week rotation: under-used trailing 4 weeks | +5 |
+| Marked "preferred" for this student | +25 |
+| Onboarding with this same student | +60 |
 
 ### Penalties
 | Condition | Penalty |
 |-----------|---------|
-| Same student 3+ times this week | -20 |
-| Not trained on student | -30 |
-| Overnight without certification | -50 |
+| Same student 4+ times this week | -20 |
+| Not trained (manual mode only) | -40 |
+| Marked "avoid" for this student | -35 |
+| Cross-week rotation: over-used trailing 4 weeks | -5 |
+| Overnight without certification (manual mode) | -50 |
 
-Candidates are ranked by score with tags and warnings shown in plain language. Schedulers can override any suggestion and record a reason.
+Candidates are ranked by score with tags and warnings shown in plain language. Schedulers can override any suggestion and record a reason. All weights live in [src/lib/scheduling/rules.ts](src/lib/scheduling/rules.ts) and can be adjusted from one place.
 
 ## Running Locally
 

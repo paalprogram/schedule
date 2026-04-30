@@ -33,21 +33,39 @@ export async function POST(req: NextRequest) {
 
   const db = getDb();
 
-  const result = db.prepare(`
+  // day_of_week may be a number (single template) or an array of numbers
+  // (one indefinite/standard schedule that recurs on multiple days). The
+  // multi-day form lets you set a "9-3 every weekday" template in one form
+  // submission instead of creating five separate rows by hand.
+  const days: number[] = Array.isArray(body.day_of_week) ? body.day_of_week : [body.day_of_week];
+
+  const insert = db.prepare(`
     INSERT INTO shift_template (student_id, day_of_week, start_time, end_time, shift_type, activity_type, needs_swim_support, notes)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    body.student_id,
-    body.day_of_week,
-    body.start_time,
-    body.end_time,
-    body.shift_type || "regular",
-    body.activity_type || "general",
-    body.needs_swim_support ? 1 : 0,
-    body.notes || null
-  );
+  `);
 
-  const template = db.prepare("SELECT * FROM shift_template WHERE id = ?").get(result.lastInsertRowid);
+  const insertedIds = db.transaction(() => {
+    const ids: (number | bigint)[] = [];
+    for (const day of days) {
+      const result = insert.run(
+        body.student_id,
+        day,
+        body.start_time,
+        body.end_time,
+        body.shift_type || "regular",
+        body.activity_type || "general",
+        body.needs_swim_support ? 1 : 0,
+        body.notes || null
+      );
+      ids.push(result.lastInsertRowid);
+    }
+    return ids;
+  })();
+
+  const placeholders = insertedIds.map(() => "?").join(",");
+  const templates = db.prepare(`SELECT * FROM shift_template WHERE id IN (${placeholders}) ORDER BY day_of_week`).all(...insertedIds);
   db.close();
-  return NextResponse.json(template, { status: 201 });
+  // Return single object for single-day creates (backwards compatible) or an
+  // array when multiple days were created.
+  return NextResponse.json(templates.length === 1 ? templates[0] : templates, { status: 201 });
 }
